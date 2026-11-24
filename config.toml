@@ -1,0 +1,36 @@
+# Change this to your real https URL before you care about the sitemap.
+# Root-relative "/" keeps links working on Cloudflare Pages before the domain is known.
+base_url = "/"
+title = "WHS"
+description = "A general site. New pieces show up by section, starting with K-pop."
+theme = "whs"
+compile_sass = false
+generate_feeds = true
+feed_filenames = ["atom.xml"]
+build_search_index = false
+minify_html = false
+generate_sitemap = true
+taxonomies = [{ name = "collections", feed = false, render = false }]
+
+[markdown]
+smart_punctuation = true
+external_links_target_blank = true
+external_links_no_follow = false
+external_links_no_referrer = true
+
+[extra]
+# Optional. Set to your real origin, no trailing slash, when you know the domain.
+# Example: site_url = "https://whs.pages.dev"
+site_url = ""
+# Paste the exact AdSense meta tag between the quotes, then rebuild.
+# Leave this empty until Google gives you one. Do not invent a ca-pub id.
+# ads.txt is a separate file at the site root, not a substitute for this tag.
+adsense_meta = ""
+
+[[extra.categories]]
+title = "K-pop"
+slug = "kpop"
+
+[[extra.categories]]
+title = "K-drama"
+slug = "kdrama"

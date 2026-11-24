@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Page not found{% endblock %}
+{% block description %}That page is not on this site.{% endblock %}
+
+{% block content %}
+<article class="mx-auto w-[min(43rem,calc(100%-1.5rem))] pb-16 sm:w-[min(43rem,calc(100%-2.5rem))]">
+  <header class="pt-8 sm:pt-13">
+    <p class="mb-4 text-xs font-bold tracking-[0.07em] text-accent-dark uppercase">404</p>
+    <h1 class="m-0 font-serif text-[clamp(2.2rem,4.6vw,3.15rem)] leading-[1.08] font-[650] tracking-[-0.035em]">That page is not here.</h1>
+    <p class="mt-4 text-[1.16rem] leading-snug text-[#3c3848]">The homepage is still there.</p>
+    <p class="mt-4"><a class="font-semibold" href="/">Back to WHS</a></p>
+  </header>
+</article>
+{% endblock %}

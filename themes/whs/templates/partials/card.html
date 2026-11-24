@@ -1,0 +1,14 @@
+<a class="group flex flex-col overflow-hidden rounded-2xl border border-line bg-white text-inherit no-underline{% if featured %} md:col-span-2{% endif %}" href="{{ page.permalink | safe }}">
+  <span class="flex aspect-video items-end bg-soft p-4" data-cat="{{ page.extra.category_slug | default(value='guide') }}" aria-hidden="true">
+    <span class="text-xs font-bold tracking-[0.07em] text-accent-dark uppercase">{{ page.extra.category | default(value="WHS") }}</span>
+  </span>
+  <span class="flex flex-col gap-2 p-4">
+    <span class="flex flex-wrap gap-2 text-[0.82rem] text-muted">
+      <span class="rounded-full bg-soft px-2 py-0.5 text-[0.68rem] font-bold tracking-[0.04em] text-[#3d3850] uppercase">{{ page.extra.category | default(value="Guide") }}</span>
+      {% include "partials/stamp.html" %}
+      <span>{{ page.reading_time }} min</span>
+    </span>
+    <strong class="font-serif text-[1.32rem] leading-tight font-[650] tracking-[-0.03em] group-hover:text-accent-dark">{{ page.title }}</strong>
+    {% if page.description %}<em class="font-normal text-muted not-italic">{{ page.description }}</em>{% endif %}
+  </span>
+</a>

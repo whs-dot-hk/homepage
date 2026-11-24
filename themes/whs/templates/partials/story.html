@@ -1,0 +1,22 @@
+{% set kind = story | default(value="card") %}
+<a class="story story-{{ kind }} group flex min-w-0 flex-col items-start gap-2 text-inherit no-underline{% if page.extra.poster or page.extra.trailer %} has-poster{% if kind == 'lead' %} relative block aspect-video overflow-hidden rounded-[18px] bg-[#14121c] text-white{% else %} overflow-hidden rounded-2xl border border-line bg-white{% endif %}{% elif kind == 'lead' %} border-b-[3px] border-ink pb-6{% endif %}" href="{{ page.permalink | safe }}">
+  {% if page.extra.poster or page.extra.trailer %}
+  <span class="poster block overflow-hidden bg-[#14121c]{% if kind == 'lead' %} absolute inset-0{% else %} aspect-video w-full{% endif %}" aria-hidden="true">
+    {% if page.extra.poster %}
+    <img class="block h-full w-full object-contain object-center motion-safe:transition-transform motion-safe:duration-500 group-hover:motion-safe:scale-[1.035]" src="{{ page.extra.poster }}" alt="">
+    {% else %}
+    <img class="block h-full w-full object-contain object-center motion-safe:transition-transform motion-safe:duration-500 group-hover:motion-safe:scale-[1.035]" src="https://i.ytimg.com/vi/{{ page.extra.trailer }}/{% if kind == 'lead' %}maxresdefault{% else %}hqdefault{% endif %}.jpg" alt="">
+    {% endif %}
+  </span>
+  {% endif %}
+  <span class="story-copy{% if page.extra.poster or page.extra.trailer %}{% if kind == 'lead' %} absolute inset-x-0 bottom-0 flex flex-col items-start gap-2 bg-gradient-to-b from-transparent to-[rgba(12,10,18,0.92)] px-6 pt-18 pb-6{% else %} flex flex-col gap-1.5 px-4 py-4{% endif %}{% else %} flex flex-col items-start gap-2{% endif %}">
+    <span class="story-cat inline-block text-xs font-bold tracking-[0.07em] uppercase data-[cat=kpop]:text-[#6d28b0] data-[cat=kdrama]:text-[#9a2340]{% if kind == 'lead' %} text-[0.78rem]{% endif %}{% if (page.extra.poster or page.extra.trailer) and kind == 'lead' %} text-[#d5ccff]{% else %} text-accent-dark{% endif %}" data-cat="{{ page.extra.category_slug | default(value='kdrama') }}">{{ page.extra.category | default(value="WHS") }}</span>
+    <strong class="font-serif font-[650] leading-[1.12] tracking-[-0.03em] text-balance group-hover:text-accent-dark{% if kind == 'lead' %} text-[clamp(1.7rem,3.2vw,2.65rem)] max-w-[22ch]{% if page.extra.poster or page.extra.trailer %} text-white group-hover:text-white{% endif %}{% else %} text-[1.32rem]{% endif %}">{{ page.title }}</strong>
+    {% if kind != "compact" and page.description %}<em class="font-normal leading-snug text-muted not-italic{% if kind == 'lead' %} mt-0.5 max-w-[38rem] text-[1.12rem]{% endif %}{% if (page.extra.poster or page.extra.trailer) and kind == 'lead' %} text-[#e4deef]{% endif %}">{{ page.description }}</em>{% endif %}
+    <span class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.82rem] text-muted{% if (page.extra.poster or page.extra.trailer) and kind == 'lead' %} text-[#efeaff]{% endif %}">
+      {% include "partials/stamp.html" %}
+      <span>{{ page.reading_time }} min</span>
+      <span class="font-bold text-accent-dark group-hover:underline group-hover:underline-offset-[0.16em]{% if (page.extra.poster or page.extra.trailer) and kind == 'lead' %} text-[#efeaff]{% endif %}">Read</span>
+    </span>
+  </span>
+</a>

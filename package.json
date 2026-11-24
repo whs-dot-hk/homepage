@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "scripts": {
+    "css": "tailwindcss -i themes/whs/src/input.css -o themes/whs/static/style.css --minify",
+    "css:watch": "tailwindcss -i themes/whs/src/input.css -o themes/whs/static/style.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4",
+    "tailwindcss": "^4"
+  }
+}

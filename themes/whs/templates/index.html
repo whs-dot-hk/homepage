@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}WHS{% endblock %}
+{% block description %}{{ config.description }}{% endblock %}
+{% block og_title %}WHS{% endblock %}
+{% block og_description %}{{ config.description }}{% endblock %}
+
+{% block content %}
+{% set articles = get_taxonomy_term(kind="collections", term="Article", required=false) %}
+{% set pages = articles.pages | default(value=[]) %}
+{% set total = pages | length %}
+
+<div class="mx-auto mt-6 grid w-[min(76rem,calc(100%-1.5rem))] grid-cols-1 items-start gap-10 sm:w-[min(76rem,calc(100%-2.5rem))]{% if total > 1 %} lg:grid-cols-[minmax(0,1fr)_19.5rem]{% endif %}">
+  <div>
+    <h1 class="sr-only">WHS</h1>
+    {% if pages %}
+      {% set page = pages | first %}
+      {% set story = "lead" %}
+      {% include "partials/story.html" %}
+      {% if total > 1 %}
+      <div class="mt-5 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-6 lg:gap-y-6">
+        {% for page in pages %}
+          {% if loop.index > 1 and loop.index <= 4 %}
+            {% set story = "card" %}
+            {% include "partials/story.html" %}
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% else %}
+      <p class="m-0 rounded-2xl border border-dashed border-line px-5 py-5 text-muted">No articles yet.</p>
+    {% endif %}
+  </div>
+  {% if total > 1 %}
+  <aside class="static border-t border-line pt-5 lg:sticky lg:top-[6.3rem] lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5" aria-label="Latest">
+    <p class="mb-3 text-xs font-bold tracking-[0.08em] text-muted uppercase">Latest</p>
+    <ol class="m-0 list-none p-0">
+      {% for page in pages %}
+      {% if loop.index > 1 and loop.index <= 7 %}
+      <li class="border-t border-line">
+        <a class="flex flex-col gap-1 py-3.5 text-inherit no-underline [&_strong]:text-base [&_strong]:leading-snug [&_strong]:tracking-[-0.02em] hover:[&_strong]:text-accent-dark" href="{{ page.permalink | safe }}">
+          <span class="story-cat inline-block text-xs font-bold tracking-[0.07em] uppercase data-[cat=kpop]:text-[#6d28b0] data-[cat=kdrama]:text-[#9a2340]" data-cat="{{ page.extra.category_slug }}">{{ page.extra.category }}</span>
+          <strong>{{ page.title }}</strong>
+          {% include "partials/stamp.html" %}
+        </a>
+      </li>
+      {% endif %}
+      {% endfor %}
+    </ol>
+  </aside>
+  {% endif %}
+</div>
+
+{% if total > 1 %}
+<div class="mx-auto mt-11 mb-16 w-[min(76rem,calc(100%-1.5rem))] sm:w-[min(76rem,calc(100%-2.5rem))]">
+  {% for cat in config.extra.categories %}
+  {% set cat_section = get_section(path=cat.slug ~ "/_index.md") %}
+  {% if cat_section.pages %}
+  <section class="border-t border-line pt-6" aria-label="{{ cat.title }}">
+    <header class="mb-4 flex items-baseline justify-between gap-4">
+      <h2 class="m-0 text-[1.35rem] tracking-[-0.03em]"><a class="text-inherit no-underline hover:text-accent-dark" href="/{{ cat.slug }}/">{{ cat.title }}</a></h2>
+      <a class="font-[650] text-accent-dark no-underline hover:underline hover:underline-offset-[0.16em]" href="/{{ cat.slug }}/">See all</a>
+    </header>
+    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {% for page in cat_section.pages %}
+        {% set story = "band" %}
+        {% include "partials/story.html" %}
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+  {% endfor %}
+</div>
+{% else %}
+<div class="mb-12"></div>
+{% endif %}
+{% endblock %}

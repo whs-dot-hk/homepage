@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page.title }} — WHS{% endblock %}
+{% block description %}{{ page.description }}{% endblock %}
+{% block og_title %}{{ page.title }}{% endblock %}
+{% block og_description %}{{ page.description }}{% endblock %}
+
+{% block content %}
+<article class="mx-auto w-[min(43rem,calc(100%-1.5rem))] pb-16 sm:w-[min(43rem,calc(100%-2.5rem))]">
+  <header class="pt-8 sm:pt-13">
+    <p class="mb-4 flex items-center gap-2 text-[0.95rem] text-muted"><span class="text-xs font-bold tracking-[0.07em] text-accent-dark uppercase no-underline">WHS</span></p>
+    <h1 class="m-0 font-serif text-[clamp(2.2rem,4.6vw,3.15rem)] leading-[1.08] font-[650] tracking-[-0.035em]">{{ page.title }}</h1>
+    {% if page.description %}<p class="mt-4 text-[1.16rem] leading-snug text-[#3c3848]">{{ page.description }}</p>{% endif %}
+    {% if page.date or page.updated %}
+    <p class="mt-4 flex flex-wrap gap-x-2 gap-y-1 text-[0.92rem] text-muted">{% include "partials/stamp.html" %}</p>
+    {% endif %}
+  </header>
+  <div class="prose mt-2">
+    {{ page.content | safe }}
+  </div>
+</article>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% component lead() %}
+<div class="lead">{{ body | markdown | safe }}</div>
+{% endcomponent lead %}
+
+{% component note(title: string = "") %}
+<aside class="my-5 rounded-[14px] bg-accent-soft px-4 py-4">
+  {% if title %}<p class="mb-1 font-bold tracking-[-0.02em]">{{ title }}</p>{% endif %}
+  <div class="[&_p:first-child]:mt-0 [&_p:last-child]:mb-0">{{ body | markdown | safe }}</div>
+</aside>
+{% endcomponent note %}
+
+{% component channel(id: string, level: string, name: string, handle: string, url: string, fit: string = "", en: string = "", lang: string = "") %}
+<section class="mt-7 scroll-mt-26 border-t border-line pt-5" id="{{ id }}">
+  <div class="flex items-baseline justify-between gap-3 max-sm:items-start">
+    <h3 class="m-0 text-[1.28rem] leading-snug tracking-[-0.03em]"{% if lang %} lang="{{ lang }}"{% endif %}>{{ name }}{% if en %} <span class="text-[0.95rem] font-medium text-muted">{{ en }}</span>{% endif %}</h3>
+    <span class="pill shrink-0 rounded-full bg-soft px-2 py-0.5 text-[0.68rem] font-bold tracking-[0.04em] text-[#3d3850] uppercase" data-level="{{ level | lower }}">{{ level }}</span>
+  </div>
+  <p class="mt-1 font-mono text-[0.78rem] text-muted">{{ handle }}</p>
+  <div class="[&_p]:my-2.5">{{ body | markdown | safe }}</div>
+  {% if fit %}<p class="mt-1 text-[0.95rem] text-muted"><span class="font-semibold text-ink">Best fit</span> {{ fit }}</p>{% endif %}
+  <p class="mt-2"><a class="font-semibold text-accent-dark no-underline hover:underline hover:underline-offset-[0.16em]" href="{{ url }}" target="_blank" rel="noopener noreferrer">Open channel <span aria-hidden="true">→</span><span class="sr-only"> (opens in a new tab)</span></a></p>
+</section>
+{% endcomponent channel %}

@@ -1,0 +1,10 @@
+{% if page.date %}
+  {% set stamp = page.date %}
+{% elif page.updated %}
+  {% set stamp = page.updated %}
+{% else %}
+  {% set stamp = "" %}
+{% endif %}
+{% if stamp %}
+<time datetime="{{ stamp | date(format='%Y-%m-%d') }}">{{ stamp | date(format="%b %d, %Y") }}</time>
+{% endif %}

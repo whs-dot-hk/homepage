@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page.title }} — WHS{% endblock %}
+{% block description %}{{ page.description }}{% endblock %}
+{% block og_title %}{{ page.title }}{% endblock %}
+{% block og_description %}{{ page.description }}{% endblock %}
+{% block og_type %}article{% endblock %}
+
+{% block head %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": {{ page.title | json_encode | safe }},
+  "description": {{ page.description | json_encode | safe }},
+  "datePublished": {{ page.date | date(format="%Y-%m-%dT%H:%M:%SZ") | json_encode | safe }},
+  "dateModified": {{ page.updated | default(value=page.date) | date(format="%Y-%m-%dT%H:%M:%SZ") | json_encode | safe }},
+  "inLanguage": "en",
+  "author": { "@type": "Organization", "name": "WHS" },
+  "publisher": { "@type": "Organization", "name": "WHS" }
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<article class="mx-auto w-[min(43rem,calc(100%-1.5rem))] pb-16 sm:w-[min(43rem,calc(100%-2.5rem))]">
+  <header class="pt-8 sm:pt-13">
+    <p class="mb-4"><a class="text-xs font-bold tracking-[0.07em] text-accent-dark uppercase no-underline" href="/{{ page.extra.category_slug | default(value='language') }}/">{{ page.extra.category | default(value="Guide") }}</a></p>
+    <h1 class="m-0 font-serif text-[clamp(2.2rem,4.6vw,3.15rem)] leading-[1.08] font-[650] tracking-[-0.035em]">{{ page.title }}</h1>
+    <p class="mt-4 text-[1.16rem] leading-snug text-[#3c3848]">{{ page.description }}</p>
+    <p class="mt-4 flex flex-wrap gap-x-2 gap-y-1 text-[0.92rem] text-muted">
+      {% include "partials/stamp.html" %}
+      <span aria-hidden="true">·</span>
+      <span>{{ page.reading_time }} min read</span>
+    </p>
+  </header>
+
+  <div>
+    {% if page.toc %}
+    <nav class="mt-7 rounded-2xl bg-soft px-4 pt-4 pb-3" aria-label="On this page">
+      <p class="mb-1 text-xs font-bold tracking-[0.06em] text-muted uppercase">On this page</p>
+      <ol class="m-0 grid list-none grid-cols-1 gap-x-5 p-0 sm:grid-cols-2">
+        {% for h in page.toc %}
+          {% if h.level == 2 %}
+          <li><a class="block py-1 text-[0.94rem] leading-snug font-medium text-[#2c2938] no-underline hover:text-accent-dark [&.is-active]:text-accent-dark" href="#{{ h.id }}">{{ h.title }}</a></li>
+          {% endif %}
+        {% endfor %}
+      </ol>
+    </nav>
+    {% endif %}
+    <div class="prose">
+      {{ page.content | safe }}
+    </div>
+    {% set cat_section = get_section(path=page.extra.category_slug ~ "/_index.md") %}
+    <aside class="mt-10 border-t border-line pt-5">
+      <p class="mb-1 text-xs font-bold tracking-[0.06em] text-muted uppercase">More in {{ page.extra.category }}</p>
+      <ul class="m-0 mt-2 list-none p-0">
+        {% for other in cat_section.pages %}
+          {% if other.permalink != page.permalink %}
+          <li class="my-2"><a class="font-semibold underline-offset-[0.16em]" href="{{ other.permalink | safe }}">{{ other.title }}</a></li>
+          {% endif %}
+        {% endfor %}
+        <li class="my-2"><a class="font-semibold underline-offset-[0.16em]" href="/{{ page.extra.category_slug }}/">All {{ page.extra.category }}</a></li>
+      </ul>
+    </aside>
+  </div>
+</article>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    var links = document.querySelectorAll("nav[aria-label='On this page'] a");
+    if (!links.length) return;
+    var heads = [];
+    links.forEach(function (link) {
+      var id = link.getAttribute("href").slice(1);
+      var el = document.getElementById(id);
+      if (el) heads.push(el);
+    });
+    if (!heads.length || !("IntersectionObserver" in window)) return;
+    var active = null;
+    var obs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        active = entry.target.id;
+        links.forEach(function (link) {
+          link.classList.toggle("is-active", link.getAttribute("href") === "#" + active);
+        });
+      });
+    }, { rootMargin: "-20% 0px -65% 0px", threshold: 0 });
+    heads.forEach(function (el) { obs.observe(el); });
+  })();
+</script>
+{% endblock %}

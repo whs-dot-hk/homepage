@@ -1,0 +1,4 @@
+name = "whs"
+description = "Editorial theme for the WHS site"
+license = "MIT"
+min_version = "0.19.0"

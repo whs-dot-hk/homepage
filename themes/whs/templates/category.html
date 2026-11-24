@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}{{ section.title }} — WHS{% endblock %}
+{% block description %}{{ section.description }}{% endblock %}
+{% block og_title %}{{ section.title }}{% endblock %}
+{% block og_description %}{{ section.description }}{% endblock %}
+
+{% block head %}
+{% if section.pages | length == 0 %}
+<meta name="robots" content="noindex">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="mx-auto mb-16 w-[min(76rem,calc(100%-1.5rem))] sm:w-[min(76rem,calc(100%-2.5rem))]">
+  <header class="max-w-xl pt-8 sm:pt-9">
+    <p class="story-cat inline-block text-xs font-bold tracking-[0.07em] text-accent-dark uppercase data-[cat=kpop]:text-[#6d28b0] data-[cat=kdrama]:text-[#9a2340]" data-cat="{{ section.extra.slug }}">Section</p>
+    <h1 class="m-0 font-serif text-[clamp(2.4rem,5vw,3.6rem)] font-[650] tracking-[-0.035em]">{{ section.title }}</h1>
+    <p class="mt-4 text-[1.16rem] leading-snug text-[#3c3848]">{{ section.description }}</p>
+  </header>
+  <div class="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+    {% for page in section.pages %}
+      {% set story = "card" %}
+      {% include "partials/story.html" %}
+    {% else %}
+    <p class="m-0 rounded-2xl border border-dashed border-line px-5 py-5 text-muted">Nothing in {{ section.title }} yet.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
