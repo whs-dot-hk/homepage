@@ -5,8 +5,23 @@
     <link rel="self" type="application/atom+xml" href="/atom.xml"/>
     <link rel="alternate" type="text/html" href="/"/>
     <generator uri="https://www.getzola.org/">Zola</generator>
-    <updated>2026-11-25T05:40:00+00:00</updated>
+    <updated>2026-11-25T07:51:57+00:00</updated>
     <id>/atom.xml</id>
+    <entry xml:lang="en">
+        <title>KPop Demon Hunters Official Trailer Overview</title>
+        <published>2026-11-25T06:15:00+00:00</published>
+        <updated>2026-11-25T07:51:57+00:00</updated>
+        
+        <author>
+          <name>Unknown</name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="/movies/kpop-demon-hunters/"/>
+        <id>/movies/kpop-demon-hunters/</id>
+        
+        <content type="html" xml:base="/movies/kpop-demon-hunters/"></content>
+        
+    </entry>
     <entry xml:lang="en">
         <title>Teach You a Lesson Official Trailer Overview</title>
         <published>2026-11-24T15:43:00+00:00</published>
