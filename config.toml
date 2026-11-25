@@ -22,10 +22,8 @@ external_links_no_referrer = true
 # Optional. Set to your real origin, no trailing slash, when you know the domain.
 # Example: site_url = "https://whs.pages.dev"
 site_url = ""
-# Paste the exact AdSense meta tag between the quotes, then rebuild.
-# Leave this empty until Google gives you one. Do not invent a ca-pub id.
-# ads.txt is a separate file at the site root, not a substitute for this tag.
-adsense_meta = ""
+# AdSense site verification. ads.txt at the site root is separate and required too.
+adsense_meta = '<meta name="google-adsense-account" content="ca-pub-7747712454888576">'
 
 [[extra.categories]]
 title = "K-pop"
