@@ -24,6 +24,8 @@ external_links_no_referrer = true
 site_url = ""
 # AdSense site verification. ads.txt at the site root is separate and required too.
 adsense_meta = '<meta name="google-adsense-account" content="ca-pub-7747712454888576">'
+# Auto ads loader. Google places the ads after the site is approved.
+adsense_client = "ca-pub-7747712454888576"
 
 [[extra.categories]]
 title = "K-pop"
