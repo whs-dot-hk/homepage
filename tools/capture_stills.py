@@ -3,20 +3,26 @@
 
 Auto-gen finds the important moments first. Debug is three steps. Step 1 shows
 one frame per moment so the beats can be kept or dropped. Step 2, --frames with
-those timestamps, shows a few in-focus frames around each kept moment. Step 3,
---final with the times copied from that textbox, saves the matching video frame.
-A sharp pick stays at that timestamp. A soft pick moves only when her face is
-found and a nearby frame of the same shot is sharper on both her face and the
-whole frame. No face is not treated as blur. A moment has to show a
-person, and that person has to be the subject of the page (Soyeon, when the
-page is about her). A shot of someone else, or of an empty set, is not a
-moment. How many moments there are still comes from the video: a new shot,
-including a short cut when she is clearly in it, a pose that jumps, a closer
-face, or a hand doing something, but only where she is actually in the frame. When several frames of one beat are offered, a
-closed-mouth smile ranks ahead of an open mouth or a flat mouth. It does not aim for a fixed count. The gallery only
-grows. A new frame is added beside what is already there. An older still of the
-same beat is replaced by the frame chosen in the last step. An existing jpeg of
-a different beat is never overwritten. The filename is the timestamp, never
+those timestamps, shows the whole shot each kept moment sits in: one frame every
+fifth of a second, earlier first, the same way a single-still picker does. A few
+seconds before and after the detected cut are shown too, dimmer, so a camera
+move is still a choice. The time on a card is that frame. A tenth that would point at a different picture
+is written with a hundredth, so the saved frame is the one on the card. Step 3,
+--final with the times copied from that textbox, saves that frame and drops
+every still that was not checked. The chosen frame is the frame. A sharper
+neighbor is a different picture, so it is not swapped in. A moment has to show a person.
+On a page about one person, that person has to be the subject (Soyeon, when
+the page is about her). A shot of someone else, or of an empty set, is not a
+moment. A trailer is different: many characters share the video, so a K-drama
+page keeps every held shot that has a person, and the choice page splits those
+moments into a tab per character. That does not change a one-person page.
+How many moments there are still comes from the video: a new shot, including
+a short cut when someone is clearly in it, a pose that jumps, a closer face,
+or a hand doing something, but only where a person is actually in the frame. Step 2 does not rank or drop
+frames inside that shot. Auto-gen still offers a few frames, and a closed-mouth smile ranks ahead of an open mouth
+or a flat mouth. It does not aim for a fixed count. Step 3 is the gallery:
+each checked time is one still, and a still that was not checked is removed.
+An existing jpeg of a different beat is never overwritten. The filename is the timestamp, never
 a sequence number.
 
   tools/capture_stills.py VIDEO --at 39 --page content/kpop/toesa-halgeyo.md
@@ -39,7 +45,7 @@ import re
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -95,42 +101,82 @@ class Event:
     smile: float = 0.0
     focus: float = 0.0
     reasons: list[str] = field(default_factory=list)
+    # Trailer only. (character id, face area). 0 is a face that did not join a character.
+    faces: list[tuple[int, float]] = field(default_factory=list)
+    cast_ids: list[int] = field(default_factory=list)
+    # Step 2. The shot this strip covers, and the kept times inside it.
+    shot_lo: float = 0.0
+    shot_hi: float = 0.0
+    kept_times: list[float] = field(default_factory=list)
+    # Frames offered past the detected cut, so a camera move can still be chosen.
+    nearby: bool = False
+
+
+def _on_tenth(t: float) -> bool:
+    """True when the time is already a tenth, so the old label still round-trips."""
+    return abs(t * 10 - round(t * 10)) < 0.005
 
 
 def stamp(t: float) -> str:
-    """Filename-safe timestamp. A tenth is kept so nearby frames stay distinct."""
+    """Filename-safe timestamp. A tenth stays a tenth. A frame between tenths keeps the hundredth."""
     t = max(0.0, t)
     minutes, seconds = divmod(t, 60.0)
-    if abs(seconds - round(seconds)) < 0.05:
-        return f"{int(minutes):02d}m{int(round(seconds)):02d}s"
-    tenths = int(round(seconds * 10))
-    return f"{int(minutes):02d}m{tenths // 10:02d}.{tenths % 10}s"
+    if _on_tenth(t):
+        if abs(seconds - round(seconds)) < 0.05:
+            return f"{int(minutes):02d}m{int(round(seconds)):02d}s"
+        tenths = int(round(seconds * 10))
+        return f"{int(minutes):02d}m{tenths // 10:02d}.{tenths % 10}s"
+    hundredths = int(round(seconds * 100))
+    return f"{int(minutes):02d}m{hundredths // 100:02d}.{hundredths % 100:02d}s"
 
 
 def label(t: float) -> str:
-    minutes, seconds = divmod(max(0.0, t), 60.0)
+    """Timestamp a person can paste. Two decimals only when one decimal would be a different frame."""
+    t = max(0.0, t)
+    minutes, seconds = divmod(t, 60.0)
+    if not _on_tenth(t):
+        return f"{int(minutes)}:{seconds:05.2f}"
     if abs(seconds - round(seconds)) < 0.05:
         return f"{int(minutes)}:{int(round(seconds)):02d}.0"
     return f"{int(minutes)}:{seconds:04.1f}"
 
 
-def content_box(bgr: np.ndarray, thresh: int = 12) -> tuple[int, int, int, int]:
-    """Drop letterbox bars so a 16:9 frame does not keep black side borders."""
+def frame_index(fps: float, t: float) -> int:
+    return int(round(max(0.0, t) * fps))
+
+
+def canonical_time(fps: float, t: float) -> float:
+    """Least precision that still seeks back to this same frame.
+
+    A tenth is two or three frames. Rounding both of them to 1:23.3 saved the
+    neighbor of the picture on the card. A hundredth is used only then.
+    """
+    index = frame_index(fps, t)
+    tenth = round(index / fps, 1)
+    if frame_index(fps, tenth) == index:
+        return tenth
+    hundredth = round(index / fps, 2)
+    if frame_index(fps, hundredth) == index:
+        return hundredth
+    return round(index / fps, 3)
+
+
+def content_box(bgr: np.ndarray, thresh: int = 8) -> tuple[int, int, int, int]:
+    """Drop letterbox bars only. A dark room is the picture, not a side border."""
     gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
     h, w = gray.shape
-    cols = gray.mean(axis=0)
     rows = gray.mean(axis=1)
-    dark_c = cols < thresh
-    dark_r = rows < thresh
-    left = int(dark_c[: w // 3].sum()) if dark_c[0] else 0
-    right = int(dark_c[-(w // 3) :].sum()) if dark_c[-1] else 0
-    top = int(dark_r[: h // 3].sum()) if dark_r[0] else 0
-    bottom = int(dark_r[-(h // 3) :].sum()) if dark_r[-1] else 0
-    x0, y0 = left, top
-    x1, y1 = w - right, h - bottom
-    if x1 - x0 < w * 0.5 or y1 - y0 < h * 0.5:
+    dark = rows < thresh
+    top = int(dark[: h // 3].sum()) if dark[0] else 0
+    bottom = int(dark[-(h // 3) :].sum()) if dark[-1] else 0
+    if top < 8:
+        top = 0
+    if bottom < 8:
+        bottom = 0
+    y1 = h - bottom
+    if y1 - top < h * 0.5:
         return 0, 0, w, h
-    return x0, y0, x1, y1
+    return 0, top, w, y1
 
 
 def crop_bars(bgr: np.ndarray) -> np.ndarray:
@@ -390,6 +436,134 @@ def _people_area(det, bgr: np.ndarray) -> float:
     return best
 
 
+# Trailer face clusters. Filled by score_cast, restored when a cast scan is loaded.
+CAST_CENTROIDS: list[tuple[int, np.ndarray]] = []
+CAST_BEST: dict[int, tuple[float, np.ndarray]] = {}
+
+
+def page_is_trailer(page: Path) -> bool:
+    """K-drama pages are trailers. Many characters, so the one-lead filter stays off."""
+    return 'category_slug = "kdrama"' in page.read_text()
+
+
+def _has_person(event: Event) -> bool:
+    """Someone is in the frame. Not limited to the page's one subject."""
+    if any(area >= 0.004 for _who, area in event.faces):
+        return True
+    if event.face_area >= 0.008:
+        return True
+    return event.people >= PERSON_MIN_AREA
+
+
+def _detect_faces(det, bgr: np.ndarray, score: float = 0.5, min_area: float = 0.0035) -> list[tuple[float, np.ndarray]]:
+    if det is None:
+        return []
+    height, width = bgr.shape[:2]
+    det.setInputSize((width, height))
+    det.setScoreThreshold(score)
+    _, faces = det.detect(bgr)
+    if faces is None:
+        return []
+    found = []
+    for face in faces:
+        area = float(face[2]) * float(face[3]) / float(width * height)
+        if area < min_area:
+            continue
+        found.append((area, np.asarray(face, dtype=np.float32).copy()))
+    found.sort(key=lambda item: -item[0])
+    return found[:6]
+
+
+def _box15(box) -> np.ndarray:
+    row = np.zeros(15, dtype=np.float32)
+    flat = np.asarray(box, dtype=np.float32).reshape(-1)
+    n = min(15, int(flat.size))
+    row[:n] = flat[:n]
+    return row
+
+
+def _crop_face(bgr: np.ndarray, box, pad: float = 0.45) -> np.ndarray:
+    height, width = bgr.shape[:2]
+    flat = np.asarray(box, dtype=np.float32).reshape(-1)
+    if flat.size < 4:
+        return bgr
+    x, y, fw, fh = [float(v) for v in flat[:4]]
+    if fw < 2 or fh < 2:
+        return bgr
+    x0 = max(0, int(x - fw * pad))
+    y0 = max(0, int(y - fh * pad))
+    x1 = min(width, int(x + fw * (1 + pad)))
+    y1 = min(height, int(y + fh * (1 + pad)))
+    if x1 <= x0 or y1 <= y0:
+        return bgr
+    return bgr[y0:y1, x0:x1]
+
+
+def _cluster_faces(feats: list[np.ndarray], areas: list[float], match: float = 0.42) -> tuple[list[list[int]], list[np.ndarray]]:
+    """Greedy clusters. Clear faces seed first, so a blurry match does not start a person."""
+    clusters: list[list[int]] = []
+    cents: list[np.ndarray] = []
+    for i in sorted(range(len(feats)), key=lambda n: -areas[n]):
+        feat = feats[i]
+        best_i = -1
+        best_c = match
+        for ci, cent in enumerate(cents):
+            score = float(np.dot(feat, cent))
+            if score >= best_c:
+                best_c = score
+                best_i = ci
+        if best_i >= 0:
+            clusters[best_i].append(i)
+            cents[best_i] = _norm_feat(np.mean([feats[j] for j in clusters[best_i]], axis=0))
+        else:
+            clusters.append([i])
+            cents.append(feat)
+    return clusters, cents
+
+
+def _tab_ids(event: Event) -> list[int]:
+    if event.cast_ids:
+        return list(event.cast_ids)
+    ids: list[int] = []
+    for who, area in event.faces:
+        if area < 0.006 or who in ids:
+            continue
+        ids.append(who)
+    return ids
+
+
+def _who_labels(event: Event) -> list[str]:
+    ids = _tab_ids(event)
+    if not ids:
+        return []
+    return ["others" if who == 0 else f"character {who}" for who in ids]
+
+
+def _cast_ids_near(events: list[Event], index: int, step: float) -> list[int]:
+    """Characters in this shot, not only the one face on the representative frame."""
+    shot = events[index].shot
+    t = events[index].t
+    counts: dict[int, int] = {}
+    best: dict[int, float] = {}
+    for event in events:
+        if event.shot != shot or abs(event.t - t) > 1.2:
+            continue
+        for who, area in event.faces:
+            if area < 0.008:
+                continue
+            counts[who] = counts.get(who, 0) + 1
+            best[who] = max(best.get(who, 0.0), area)
+    ids = [who for who in counts if who != 0 and (counts[who] >= 2 or best[who] >= 0.018)]
+    ids.sort(key=lambda who: -best[who])
+    if ids:
+        return ids
+    if any(who == 0 and area >= 0.012 for who, area in events[index].faces):
+        return [0]
+    if _has_person(events[index]):
+        return [0]
+    return []
+
+
 def _subject_seeds(page: Path, det, recog) -> np.ndarray:
     """The page's main face. Gallery stills of other people stay in the smaller cluster."""
     media, _who = media_of(page)
@@ -557,9 +731,9 @@ def _shot_spans(events: list[Event]) -> list[tuple[int, int]]:
     return spans
 
 
-def _subject_runs(events: list[Event], start: int, end: int, step: float) -> list[tuple[int, int]]:
-    """Stretches where she stays visible. A gap is a different beat, not one moment."""
-    hits = [i for i in range(start, end) if is_subject(events[i])]
+def _subject_runs(events: list[Event], start: int, end: int, step: float, visible=is_subject) -> list[tuple[int, int]]:
+    """Stretches where a person stays visible. A gap is a different beat, not one moment."""
+    hits = [i for i in range(start, end) if visible(events[i])]
     if not hits:
         return []
     gap = max(1, int(round(2.5 / step)))
@@ -575,34 +749,46 @@ def _subject_runs(events: list[Event], start: int, end: int, step: float) -> lis
     return runs
 
 
-def _shot_frame(events: list[Event], start: int, end: int, step: float) -> int | None:
-    """The clearest frame of the subject in this shot, not the blurred cut."""
-    good = [i for i in range(start, end) if is_subject(events[i])]
+def _shot_frame(events: list[Event], start: int, end: int, step: float, visible=is_subject, rank=None) -> int | None:
+    """The clearest frame of a person in this shot, not the blurred cut."""
+    good = [i for i in range(start, end) if visible(events[i])]
     if not good:
         return None
     settle = max(1, int(round(0.3 / step)))
     settled = [i for i in good if i >= start + settle] or good
-    return max(
-        settled,
-        key=lambda i: (events[i].subject_area >= 0.006, events[i].subject, events[i].subject_area, events[i].sharp),
-    )
+    key = rank or (lambda i: (events[i].subject_area >= 0.006, events[i].subject, events[i].subject_area, events[i].sharp))
+    return max(settled, key=key)
 
 
-def moments_of(events: list[Event], limit: int | None = None, known: list[float] | None = None) -> list[Event]:
+def moments_of(events: list[Event], limit: int | None = None, known: list[float] | None = None, cast: bool = False) -> list[Event]:
     """How many important moments this video has.
 
-    A moment is a shot that shows the subject and can be a picture. A cut under
-    a second still counts when she is in it (a 0.75s close-up is a moment, not
-    a flash). One blurry sample is a flash. A jump, a closer face, or a gesture
-    later in that shot can be another moment, but only on a frame of her. Shots
-    of other people, and shots with nobody in them, are not moments. Nearby hits
-    of the same beat fold into one. A gallery timestamp is its own beat unless
-    the scan already has her on that same beat. Nothing is added to reach a
-    count. `limit` is only an optional ceiling.
+    A moment is a shot that shows a person and can be a picture. On a one-person
+    page that person is the subject. On a trailer, any held shot with a person
+    counts, and the choice page tabs those moments by character. A cut under a
+    second still counts when someone is in it. One blurry sample is a flash.
+    A jump, a closer face, or a gesture later in that shot can be another moment.
+    Shots with nobody in them are not moments. Nearby hits of the same beat fold
+    into one. A gallery timestamp is its own beat unless the scan already has
+    that same beat. Nothing is added to reach a count. `limit` is only an optional ceiling.
     """
     if not events:
         return []
     step = _step(events)
+
+    def visible(event: Event) -> bool:
+        return _has_person(event) if cast else is_subject(event)
+
+    def face_size(event: Event) -> float:
+        if cast:
+            if event.faces:
+                return max(area for _who, area in event.faces)
+            return event.face_area
+        return event.subject_area
+
+    rank = None
+    if cast:
+        rank = lambda i: (face_size(events[i]) >= 0.006, face_size(events[i]), events[i].sharp)
     hold_for = 1.0
     spans = _shot_spans(events)
     # index, strength, reasons. Strength is only for folding and an optional ceiling.
@@ -610,35 +796,39 @@ def moments_of(events: list[Event], limit: int | None = None, known: list[float]
     skipped = 0
     for start, end in spans:
         hold = (end - start) * step
-        runs = _subject_runs(events, start, end, step)
+        runs = _subject_runs(events, start, end, step, visible)
         if not runs:
             if hold >= hold_for:
                 skipped += 1
             continue
-        # One sample is a flash. A shorter cut is still a moment when she is in
-        # the picture: 1:22 is 0.75s, 1:33 is 0.5s. Both were dropped by a 1s hold.
+        # One sample is a flash. A shorter cut is still a moment when a person is
+        # in the picture: 1:22 is 0.75s, 1:33 is 0.5s. Both were dropped by a 1s hold.
         if hold < 0.45:
             continue
-        # Each stretch where she stays visible is its own beat. A wide shot or a
-        # turn away still counts, as long as she is in that stretch. A long shot
-        # can hold more than one of these.
+        # Each stretch where a person stays visible is its own beat. A wide shot
+        # or a turn away still counts, as long as someone is in that stretch.
         for run_start, run_end in runs:
-            rep = _shot_frame(events, run_start, run_end, step)
+            rep = _shot_frame(events, run_start, run_end, step, visible, rank)
             if rep is None:
                 continue
             hits = run_end - run_start
-            face_max = max(events[i].subject_area for i in range(run_start, run_end))
+            face_max = max(face_size(events[i]) for i in range(run_start, run_end))
             if hold < hold_for:
                 event = events[rep]
-                # The cut frame itself, one soft sample, is the transition, not the beat.
-                cut_flash = hits < 2 and event.cut >= 0.04 and event.sharp < 12
-                stays = hits >= 2 and face_max >= 0.01
-                picture = face_max >= 0.04 and not cut_flash
-                if not stays and not picture:
-                    continue
-            elif hits < 2 and hold > 2.0 and events[rep].subject < 0.50:
+                if cast:
+                    # A one-sample blur at the cut is the transition, not the beat.
+                    if hits < 2 and event.cut >= 0.04 and event.sharp < 12 and face_size(event) < 0.02:
+                        continue
+                else:
+                    # The cut frame itself, one soft sample, is the transition, not the beat.
+                    cut_flash = hits < 2 and event.cut >= 0.04 and event.sharp < 12
+                    stays = hits >= 2 and face_max >= 0.01
+                    picture = face_max >= 0.04 and not cut_flash
+                    if not stays and not picture:
+                        continue
+            elif hits < 2 and hold > 2.0 and (face_size(events[rep]) < 0.01 if cast else events[rep].subject < 0.50):
                 continue
-            cands.append((rep, 2.0 + face_max * 10 + events[rep].subject, {"shot"}))
+            cands.append((rep, 2.0 + face_max * 10 + (face_size(events[rep]) if cast else events[rep].subject), {"shot"}))
 
     taken = {index for index, _, _ in cands}
     radius = max(2, int(round(1.5 / step)))
@@ -647,7 +837,7 @@ def moments_of(events: list[Event], limit: int | None = None, known: list[float]
     pose_thr = _high_threshold(pose_jump[1:], 3.5, 20.0)
     span_of = {i: (start, end) for start, end in spans for i in range(start, end)}
     for i in _local_peaks(pose_jump, pose_thr):
-        if pose[i] < 24 or i not in span_of or not is_subject(events[i]):
+        if pose[i] < 24 or i not in span_of or not visible(events[i]):
             continue
         start, end = span_of[i]
         if (end - start) * step < 3.0:
@@ -657,11 +847,11 @@ def moments_of(events: list[Event], limit: int | None = None, known: list[float]
         cands.append((i, float(pose_jump[i]) / 18.0, {"pose"}))
         taken.add(i)
 
-    face = _smooth(np.array([event.subject_area for event in events], dtype=np.float32))
+    face = _smooth(np.array([face_size(event) for event in events], dtype=np.float32))
     face_jump = face - _rolling_median(face, radius)
     face_thr = _high_threshold(face_jump[1:], 3.5, 0.04)
     for i in _local_peaks(face_jump, face_thr):
-        if face[i] < 0.02 or not is_subject(events[i]):
+        if face[i] < 0.02 or not visible(events[i]):
             continue
         if any(abs(events[i].t - events[have].t) < 2.0 for have in taken):
             continue
@@ -675,7 +865,7 @@ def moments_of(events: list[Event], limit: int | None = None, known: list[float]
         hand_jump = hand_s - _rolling_median(hand_s, radius)
         hand_thr = _high_threshold(hand_jump[1:], 3.5, 0.04)
         for i in _local_peaks(hand_jump, hand_thr):
-            if not is_subject(events[i]):
+            if not visible(events[i]):
                 continue
             if any(abs(events[i].t - events[have].t) < 2.0 for have in taken):
                 continue
@@ -691,7 +881,7 @@ def moments_of(events: list[Event], limit: int | None = None, known: list[float]
         if any(abs(asked - have) < 0.9 for have in covered):
             continue
         index = min(range(len(events)), key=lambda i: abs(events[i].t - asked))
-        near = [i for i, event in enumerate(events) if abs(event.t - asked) <= 0.5 and is_subject(event)]
+        near = [i for i, event in enumerate(events) if abs(event.t - asked) <= 0.5 and visible(event)]
         if near:
             her = min(near, key=lambda i: abs(events[i].t - asked))
             # Only move onto her frame when that does not land on a beat already kept.
@@ -714,13 +904,17 @@ def moments_of(events: list[Event], limit: int | None = None, known: list[float]
     for index, _strength, reasons in folded:
         event = events[index]
         event.reasons = ["moment"] + [name for name in ("shot", "pose", "face", "gesture", "marked") if name in reasons]
-        if is_subject(event):
+        if cast:
+            event.cast_ids = _cast_ids_near(events, index, step)
+            event.reasons.extend(_who_labels(event))
+        elif is_subject(event):
             event.reasons.append("soyeon")
         found.append(event)
+    dropped = "nobody is in them" if cast else "Soyeon is not the person in them"
     print(
         f"moment pipeline: {len(found)} from the video "
         f"({n_shot} held shots, {n_pose} jumps, {n_face} close-ups, {n_hand} gestures; "
-        f"{skipped} held shots dropped because Soyeon is not the person in them; "
+        f"{skipped} held shots dropped because {dropped}; "
         f"pose>={pose_thr:.1f} face>={face_thr:.3f} hand>={hand_thr:.3f})",
         file=sys.stderr,
     )
@@ -752,28 +946,33 @@ def _fold_beats(cands: list[tuple[int, float, set[str]]], events: list[Event]) -
     return kept
 
 
-def choices_around(events: list[Event], moments: list[Event], per: int, video: Path | None = None, page: Path | None = None) -> list[Event]:
+def choices_around(events: list[Event], moments: list[Event], per: int, video: Path | None = None, page: Path | None = None, cast: bool = False) -> list[Event]:
     """A few different frames around each moment, for a person to choose from.
 
     The moment itself is one choice. The others come from a fine pass around that
     beat, not only the coarse scan. A closed-mouth smile ranks ahead of an open
-    mouth or a flat mouth, then a closer face, a jump, or a hand. A frame of
-    someone else is not offered.
+    mouth or a flat mouth, then a closer face, a jump, or a hand. On a one-person
+    page, a frame of someone else is not offered. A trailer offers any person.
     """
     per = max(1, per)
     picks: list[Event] = []
     seen: set[int] = set()
-    fine = _fine_around(video, page, moments) if video is not None and page is not None else {}
+    fine = _fine_around(video, page, moments, cast) if video is not None and page is not None else {}
+    tag = "cast" if cast else "soyeon"
+
+    def on_screen(event: Event) -> bool:
+        return _has_person(event) if cast else is_subject(event)
+
     for nth, moment in enumerate(moments):
         left = moments[nth - 1].t if nth else events[0].t
         right = moments[nth + 1].t if nth + 1 < len(moments) else events[-1].t
         # Wide enough to catch the smile just before a blur, not only the peak.
         lo = moment.t - min(2.4, max(1.2, (moment.t - left) * 0.45))
         hi = moment.t + min(2.4, max(1.2, (right - moment.t) * 0.45))
-        window = [event for event in events if lo <= event.t <= hi and is_subject(event)]
+        window = [event for event in events if lo <= event.t <= hi and on_screen(event)]
         window.extend(fine.get(id(moment), []))
         if not window:
-            # The beat was kept even though this sample missed her face. Offer the
+            # The beat was kept even though this sample missed a face. Offer the
             # moment itself, not a later shot where the match happened to succeed.
             window = [moment]
         ranked = [moment]
@@ -786,7 +985,8 @@ def choices_around(events: list[Event], moments: list[Event], per: int, video: P
             score = _focus_of(event)
             if best_focus >= 28 and score < best_focus * 0.55:
                 return False
-            if best_focus >= 28 and score < 22 and event.subject_area >= 0.01:
+            close = event.face_area if cast else event.subject_area
+            if best_focus >= 28 and score < 22 and close >= 0.01:
                 return False
             return event.sharp >= 8 or score >= 22
 
@@ -794,30 +994,33 @@ def choices_around(events: list[Event], moments: list[Event], per: int, video: P
             stand_ins = [event for event in window if usable(event) and abs(event.t - moment.t) <= 0.8]
             if stand_ins:
                 stand = min(stand_ins, key=lambda event: (abs(event.t - moment.t), -_focus_of(event)))
-                stand.reasons = ["choice", "soyeon", "focus"]
+                stand.reasons = ["choice", tag, "focus"]
                 ranked = [stand]
         floor = max(40.0, ranked[0].sharp * 0.55)
-        rest = [
-            event for event in window
-            if abs(event.t - ranked[0].t) >= 0.05
-            and event.sharp >= floor
-            and event.subject_area >= SUBJECT_MIN_AREA
-            and usable(event)
-        ]
+        rest = []
+        for event in window:
+            if abs(event.t - ranked[0].t) < 0.05 or event.sharp < floor or not usable(event):
+                continue
+            if cast:
+                if not (event.faces or event.face_area >= 0.004 or event.people >= PERSON_MIN_AREA):
+                    continue
+            elif event.subject_area < SUBJECT_MIN_AREA:
+                continue
+            rest.append(event)
         rest.sort(key=_choice_rank)
         for event in rest:
             if len(ranked) >= per:
                 break
             if any(abs(event.t - have.t) < 0.35 for have in ranked):
                 continue
-            event.reasons = ["choice", "soyeon"]
+            event.reasons = ["choice", tag]
             if event.smile >= 0.12:
                 event.reasons.append("smile")
             if event.focus >= 28:
                 event.reasons.append("focus")
             if event.pose >= 20:
                 event.reasons.append("pose")
-            if event.subject_area >= 0.02:
+            if (event.face_area if cast else event.subject_area) >= 0.02:
                 event.reasons.append("face")
             if event.gesture >= 0.04:
                 event.reasons.append("gesture")
@@ -827,18 +1030,86 @@ def choices_around(events: list[Event], moments: list[Event], per: int, video: P
             if key in seen:
                 continue
             seen.add(key)
-            if "soyeon" not in event.reasons:
-                event.reasons.append("soyeon")
+            if cast:
+                for label in _who_labels(event):
+                    if label not in event.reasons:
+                        event.reasons.append(label)
+            elif tag not in event.reasons:
+                event.reasons.append(tag)
             picks.append(event)
     return picks
 
 
-def _fine_around(video: Path, page: Path, moments: list[Event]) -> dict[int, list[Event]]:
+def _match_cast(feat: np.ndarray) -> int:
+    """Nearest character tab for this face. 0 when it does not match one."""
+    best_who = 0
+    best_c = 0.42
+    for who, cent in CAST_CENTROIDS:
+        score = float(np.dot(feat, cent))
+        if score >= best_c:
+            best_c = score
+            best_who = who
+    return best_who
+
+
+def _fine_cast(video: Path, moments: list[Event]) -> dict[int, list[Event]]:
+    """Frames around a trailer moment, tagged with whichever character is in them."""
+    face = open_face()
+    recog = open_recog()
+    if face is None or recog is None or not moments:
+        return {}
+    cap = cv2.VideoCapture(str(video))
+    if not cap.isOpened():
+        raise SystemExit(f"cannot open video: {video}")
+    fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
+    stride = max(1, int(round(0.12 * fps)))
+    found: dict[int, list[Event]] = {}
+    for moment in moments:
+        lo = max(0.0, moment.t - 2.2)
+        hi = moment.t + 2.2
+        start = int(round(lo * fps))
+        end = int(round(hi * fps))
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start)
+        bucket: list[Event] = []
+        index = start
+        while index <= end:
+            ok, bgr = cap.read()
+            if not ok:
+                break
+            if (index - start) % stride == 0:
+                hits = _detect_faces(face, bgr)
+                faces: list[tuple[int, float]] = []
+                for area, box in hits:
+                    feat = _face_feat(recog, bgr, box)
+                    who = _match_cast(feat) if feat is not None else 0
+                    if who or area >= 0.008:
+                        faces.append((who, area))
+                event = Event(
+                    t=index / fps,
+                    sharp=sharpness(cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)),
+                    shot=moment.shot,
+                    face_area=hits[0][0] if hits else 0.0,
+                    faces=faces,
+                    focus=person_focus(bgr, face)[0] if hits else 0.0,
+                )
+                if _has_person(event):
+                    bucket.append(event)
+            index += 1
+        found[id(moment)] = bucket
+        print(f"fine {label(moment.t)} {len(bucket)} frames", file=sys.stderr, flush=True)
+    cap.release()
+    return found
+
+
+def _fine_around(video: Path, page: Path, moments: list[Event], cast: bool = False) -> dict[int, list[Event]]:
     """Every few frames around each kept moment, scored for who and for a smile.
 
     The coarse scan steps by a quarter second and skips the smile. This pass
-    only covers the beats already kept.
+    only covers the beats already kept. A trailer matches faces to the character
+    tabs instead of the one subject.
     """
+    if cast:
+        return _fine_cast(video, moments)
     face = open_face()
     recog = open_recog()
     lips = open_lips()
@@ -913,9 +1184,10 @@ def person_patch(bgr: np.ndarray) -> np.ndarray:
     return patch.astype(np.float32)
 
 
-def scan_cache_path(video: Path, step: float) -> Path:
+def scan_cache_path(video: Path, step: float, cast: bool = False) -> Path:
     stat = video.stat()
-    key = f"{video.resolve()}|{stat.st_mtime_ns}|{stat.st_size}|{step:.3f}|who6"
+    tag = "cast2" if cast else "who6"
+    key = f"{video.resolve()}|{stat.st_mtime_ns}|{stat.st_size}|{step:.3f}|{tag}"
     digest = hashlib.sha1(key.encode()).hexdigest()[:16]
     return Path("/tmp/stills-scan") / f"{digest}.npz"
 
@@ -946,35 +1218,79 @@ def events_from_cache(path: Path) -> list[Event] | None:
             subject_area=float(row[9]),
             smile=float(row[10]),
         ))
-    return events or None
+    if not events:
+        return None
+    if "face_who" in data.files and "face_area_tab" in data.files:
+        for i, event in enumerate(events):
+            faces = []
+            for who, area in zip(data["face_who"][i], data["face_area_tab"][i]):
+                if int(who) >= 0 and float(area) > 0:
+                    faces.append((int(who), float(area)))
+            event.faces = faces
+    if "cast_cent" in data.files and "cast_id" in data.files:
+        global CAST_CENTROIDS, CAST_BEST
+        CAST_CENTROIDS = [
+            (int(who), np.asarray(cent, dtype=np.float32))
+            for who, cent in zip(data["cast_id"], data["cast_cent"])
+        ]
+        CAST_BEST = {}
+        if "cast_best_t" in data.files and "cast_best_box" in data.files:
+            for who, t, box in zip(data["cast_id"], data["cast_best_t"], data["cast_best_box"]):
+                CAST_BEST[int(who)] = (float(t), np.asarray(box, dtype=np.float32))
+    return events
 
 
 def load_base_scan(video: Path, step: float) -> list[Event] | None:
     """Shot scan from before identity was scored. Same samples, no subject yet."""
     stat = video.stat()
-    key = f"{video.resolve()}|{stat.st_mtime_ns}|{stat.st_size}|{step:.3f}"
-    path = Path("/tmp/stills-scan") / f"{hashlib.sha1(key.encode()).hexdigest()[:16]}.npz"
-    if not path.exists():
-        return None
-    data = np.load(path)
-    if "t" not in data.files:
-        return None
-    events = []
-    for row in zip(data["t"], data["sharp"], data["shot"], data["face"], data["gesture"], data["pose"], data["cut"]):
-        events.append(Event(
-            t=float(row[0]),
-            sharp=float(row[1]),
-            shot=int(row[2]),
-            face_area=float(row[3]),
-            gesture=float(row[4]),
-            pose=float(row[5]),
-            cut=float(row[6]),
-        ))
-    return events or None
+    base = f"{video.resolve()}|{stat.st_mtime_ns}|{stat.st_size}|{step:.3f}"
+    names = [
+        hashlib.sha1(base.encode()).hexdigest()[:16],
+        hashlib.sha1(f"{base}|who6".encode()).hexdigest()[:16],
+    ]
+    for name in names:
+        path = Path("/tmp/stills-scan") / f"{name}.npz"
+        if not path.exists():
+            continue
+        data = np.load(path)
+        if "t" not in data.files or "shot" not in data.files:
+            continue
+        events = []
+        rows = zip(
+            data["t"], data["sharp"], data["shot"], data["face"], data["gesture"], data["pose"], data["cut"],
+        )
+        for row in rows:
+            events.append(Event(
+                t=float(row[0]),
+                sharp=float(row[1]),
+                shot=int(row[2]),
+                face_area=float(row[3]),
+                gesture=float(row[4]),
+                pose=float(row[5]),
+                cut=float(row[6]),
+            ))
+        if events:
+            return events
+    return None
 
 
 def save_scan(path: Path, events: list[Event]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    who = np.full((len(events), 6), -1, dtype=np.int16)
+    tab_area = np.zeros((len(events), 6), dtype=np.float32)
+    for i, event in enumerate(events):
+        for j, (face_who, area) in enumerate(event.faces[:6]):
+            who[i, j] = face_who
+            tab_area[i, j] = area
+    extra = {
+        "face_who": who,
+        "face_area_tab": tab_area,
+    }
+    if CAST_CENTROIDS:
+        extra["cast_id"] = np.array([face_who for face_who, _cent in CAST_CENTROIDS], dtype=np.int16)
+        extra["cast_cent"] = np.stack([cent for _who, cent in CAST_CENTROIDS]).astype(np.float32)
+        extra["cast_best_t"] = np.array([CAST_BEST[face_who][0] for face_who, _cent in CAST_CENTROIDS], dtype=np.float32)
+        extra["cast_best_box"] = np.stack([CAST_BEST[face_who][1] for face_who, _cent in CAST_CENTROIDS]).astype(np.float32)
     np.savez(
         path,
         t=np.array([event.t for event in events], dtype=np.float32),
@@ -988,7 +1304,79 @@ def save_scan(path: Path, events: list[Event]) -> None:
         subject=np.array([event.subject for event in events], dtype=np.float32),
         subject_area=np.array([event.subject_area for event in events], dtype=np.float32),
         smile=np.array([event.smile for event in events], dtype=np.float32),
+        **extra,
     )
+
+
+def score_cast(video: Path, events: list[Event], step: float) -> None:
+    """Cluster faces in a trailer. Each recurring person gets a tab id, starting at 1."""
+    global CAST_CENTROIDS, CAST_BEST
+    CAST_CENTROIDS = []
+    CAST_BEST = {}
+    face = open_face()
+    recog = open_recog()
+    people = open_people()
+    if face is None or recog is None:
+        print("cast check skipped, moments are not split by character", file=sys.stderr)
+        return
+    cap = cv2.VideoCapture(str(video))
+    if not cap.isOpened():
+        raise SystemExit(f"cannot open video: {video}")
+    fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
+    stride = max(1, int(round(step * fps)))
+    samples: list[tuple[int, float, float, np.ndarray, np.ndarray]] = []
+    index = 0
+    sample = 0
+    while sample < len(events):
+        ok, bgr = cap.read()
+        if not ok:
+            break
+        if index % stride == 0:
+            event = events[sample]
+            event.people = _people_area(people, bgr)
+            for area, box in _detect_faces(face, bgr):
+                feat = _face_feat(recog, bgr, box)
+                if feat is None:
+                    continue
+                samples.append((sample, event.t, area, feat, box))
+            sample += 1
+            if sample % 40 == 0:
+                print(f"cast {event.t:.0f}s", file=sys.stderr, flush=True)
+        index += 1
+    cap.release()
+    if sample != len(events):
+        raise SystemExit(f"cast pass saw {sample} frames, scan had {len(events)}")
+    if not samples:
+        print("cast: no faces", file=sys.stderr)
+        return
+    clusters, cents = _cluster_faces([row[3] for row in samples], [row[2] for row in samples])
+    ranked = []
+    for members, cent in zip(clusters, cents):
+        count = len(members)
+        total = sum(samples[i][2] for i in members)
+        # A couple of frames is a flash, not a character tab. Those faces stay in Others.
+        if count >= 4:
+            ranked.append((total, members, cent))
+    ranked.sort(key=lambda item: -item[0])
+    ranked = ranked[:8]
+    who_of: dict[int, int] = {}
+    for nth, (_total, members, cent) in enumerate(ranked, start=1):
+        CAST_CENTROIDS.append((nth, cent))
+        best = max(members, key=lambda i: samples[i][2])
+        CAST_BEST[nth] = (samples[best][1], _box15(samples[best][4]))
+        for i in members:
+            who_of[i] = nth
+    by_event: dict[int, dict[int, float]] = {}
+    for i, row in enumerate(samples):
+        who = who_of.get(i, 0)
+        if who == 0 and row[2] < 0.008:
+            continue
+        bucket = by_event.setdefault(row[0], {})
+        bucket[who] = max(bucket.get(who, 0.0), row[2])
+    for event_i, bucket in by_event.items():
+        events[event_i].faces = sorted(bucket.items(), key=lambda item: -item[1])
+    counts = ", ".join(str(len(members)) for _total, members, _cent in ranked)
+    print(f"cast: {len(CAST_CENTROIDS)} characters ({counts})", file=sys.stderr)
 
 
 def score_subject(video: Path, page: Path, events: list[Event], step: float) -> None:
@@ -1030,7 +1418,8 @@ def score_subject(video: Path, page: Path, events: list[Event], step: float) -> 
 
 
 def scan(video: Path, page: Path, step: float) -> list[Event]:
-    cached = scan_cache_path(video, step)
+    cast = page_is_trailer(page)
+    cached = scan_cache_path(video, step, cast)
     loaded = events_from_cache(cached)
     if loaded:
         print(f"scan cache {cached} ({len(loaded)} samples)", file=sys.stderr)
@@ -1040,7 +1429,10 @@ def scan(video: Path, page: Path, step: float) -> list[Event]:
         print(f"shot cache reused ({len(events)} samples), scoring who is in frame", file=sys.stderr)
     else:
         events = _scan_shots(video, step)
-    score_subject(video, page, events, step)
+    if cast:
+        score_cast(video, events, step)
+    else:
+        score_subject(video, page, events, step)
     save_scan(cached, events)
     return events
 
@@ -1129,6 +1521,13 @@ def grab(video: Path, t: float, window: float) -> tuple[float, np.ndarray]:
     if best_img is None:
         raise SystemExit(f"no frame near {t:.1f}s")
     return best_t, best_img
+
+
+def _fps_of(video: Path) -> float:
+    cap = cv2.VideoCapture(str(video))
+    fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
+    cap.release()
+    return fps
 
 
 def grab_at(video: Path, t: float) -> np.ndarray:
@@ -1276,8 +1675,9 @@ def grab_final(video: Path, t: float, window: float = 0.5) -> tuple[float, np.nd
     if not frames:
         raise SystemExit(f"no frame at {t:.2f}s")
     asked_row = min(frames, key=lambda row: abs(row[0] - asked))
+    asked_t = canonical_time(fps, asked_row[0] / fps)
     if asked_row[3] < 0.004 or _focus_ok(asked_row[2], asked_row[3]):
-        return asked_row[0] / fps, asked_row[1]
+        return asked_t, asked_row[1]
     run = [frames[i] for i in _shot_run(frames, asked_row[0])]
     asked_whole = float(cv2.Laplacian(cv2.cvtColor(asked_row[1], cv2.COLOR_BGR2GRAY), cv2.CV_64F).var())
     # A chosen close-up must stay a close-up. The next cut can be sharp and
@@ -1285,9 +1685,9 @@ def grab_final(video: Path, t: float, window: float = 0.5) -> tuple[float, np.nd
     faced = [row for row in run if row[3] >= 0.004 and row[0] != asked_row[0]]
     clearer = [row for row in faced if _clearer(row, asked_row[2], asked_whole)]
     if not clearer:
-        return asked_row[0] / fps, asked_row[1]
+        return asked_t, asked_row[1]
     clearer.sort(key=lambda row: (abs(row[0] - asked), -row[2]))
-    return clearer[0][0] / fps, clearer[0][1]
+    return canonical_time(fps, clearer[0][0] / fps), clearer[0][1]
 
 
 def media_of(page: Path) -> tuple[Path, str]:
@@ -1425,10 +1825,51 @@ def debug_jpeg(path: Path, bgr: np.ndarray) -> None:
 
 
 def in_gallery(event: Event, stills: list[Still]) -> bool:
-    return any(abs(row.seconds() - event.t) < 0.05 for row in stills)
+    # A hundredth is a different frame of the same tenth. Do not call that one already saved.
+    return any(abs(row.seconds() - event.t) < 0.02 for row in stills)
 
 
-def render_debug(title: str, groups: list[tuple[Event, list[tuple[Event, str, bool]]]], step: str) -> str:
+def _cast_tab_bar(moments: list[Event], thumbs: dict[int, str]) -> str:
+    """Tabs for a trailer. Empty when there are not two characters to split."""
+    counts: dict[int, int] = {}
+    for moment in moments:
+        for who in _tab_ids(moment):
+            counts[who] = counts.get(who, 0) + 1
+    named = [who for who in sorted(counts) if who]
+    if len(named) < 2:
+        return ""
+    buttons = [f'<button type="button" class="on" data-tab="all">All <span>{len(moments)}</span></button>']
+    for who in named:
+        img = ""
+        if who in thumbs:
+            img = f'<img src="{html.escape(thumbs[who], quote=True)}" alt="">'
+        buttons.append(
+            f'<button type="button" data-tab="{who}">{img}Character {who} <span>{counts[who]}</span></button>'
+        )
+    if 0 in counts:
+        buttons.append(f'<button type="button" data-tab="0">Others <span>{counts[0]}</span></button>')
+    return f'<div class="tabs" id="tabs">{"".join(buttons)}</div>'
+
+
+def _write_cast_thumbs(video: Path, frames: Path) -> dict[int, str]:
+    """A face crop for each character tab. Not a gallery still."""
+    thumbs: dict[int, str] = {}
+    frames.mkdir(parents=True, exist_ok=True)
+    for who, (t, box) in sorted(CAST_BEST.items()):
+        crop = _crop_face(grab_at(video, t), box)
+        if crop.size == 0:
+            continue
+        name = f"cast-{who}.jpg"
+        path = frames / name
+        ok, buf = cv2.imencode(".jpg", crop, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+        if not ok:
+            continue
+        path.write_bytes(buf.tobytes())
+        thumbs[who] = f"frames/{name}"
+    return thumbs
+
+
+def render_debug(title: str, groups: list[tuple[Event, list[tuple[Event, str, bool]]]], step: str, tabs: str = "") -> str:
     """Step 1 confirms moments. Step 2 picks a frame, and only for moments already kept."""
     choosing_frames = step == "frames"
     sections: list[str] = []
@@ -1445,36 +1886,58 @@ def render_debug(title: str, groups: list[tuple[Event, list[tuple[Event, str, bo
                 tags += f", focus {event.focus:.0f}"
             at = html.escape(label(event.t))
             badge = '<em class="have">already in gallery</em>' if have else ""
+            where = " nearby" if event.nearby else ""
+            checked = " checked" if "kept moment" in event.reasons else ""
             cards.append(
-                f'<label class="pick">'
-                f'<input type="checkbox" data-at="{at}" data-note="{html.escape(tags)}" data-have="{1 if have else 0}">'
+                f'<label class="pick{where}">'
+                f'<input type="checkbox" data-at="{at}" data-note="{html.escape(tags)}" data-have="{1 if have else 0}"{checked}>'
                 f'<img src="{html.escape(src, quote=True)}" alt="{at}">'
                 f"<span><time>{at}</time> · {html.escape(tags)}{badge}</span>"
                 f"</label>"
             )
-        if choosing_frames:
+        if choosing_frames and moment.kept_times:
+            kept = html.escape(_join_times(moment.kept_times))
+            plural = "s" if len(moment.kept_times) > 1 else ""
+            note = (
+                f"Same shot as the kept moment{plural} at {kept}. "
+                f"The shot runs {html.escape(label(moment.shot_lo))}–{html.escape(label(moment.shot_hi))}. "
+                f"{len(frames)} frames, one every fifth of a second. "
+                "Earlier is on the left. Dimmer frames are a few seconds before and after that shot, "
+                "so a camera move is still a choice. Check the frame you want. This page does not change the gallery."
+            )
+            heading = f"Around {html.escape(label(moment.kept_times[0]))}"
+        elif choosing_frames:
+            heading = f"Moment {nth}"
             note = (
                 f"Kept moment. {html.escape(why)}. "
                 f"{len(frames)} frame{'s' if len(frames) != 1 else ''} around {html.escape(label(moment.t))}. "
                 "Earlier is on the left. Check the frame, not the beat."
             )
         else:
+            heading = f"Moment {nth}"
             note = (
                 f"One frame stands in for this beat. {html.escape(why)}. "
                 "Check it to keep the moment. Leave it unchecked to drop the moment. "
                 "The frame itself is chosen in the next step."
             )
+        ids = _tab_ids(moment) or ([0] if tabs else [])
+        who = " ".join(str(i) for i in ids)
+        attr = f' data-who="{who}"' if who else ""
         sections.append(
-            f'<section data-step="{step}">'
-            f"<h2>Moment {nth} <time>{html.escape(label(moment.t))}</time></h2>"
+            f'<section data-step="{step}"{attr}>'
+            f"<h2>{heading} <time>{html.escape(label(moment.t))}</time></h2>"
             f"<p>{note}</p>"
             f'<div class="grid">{"".join(cards)}</div>'
             f"</section>"
         )
     if choosing_frames:
         lead = (
-            "Step 2 of 2. These are only the moments you kept. "
-            "Check the frame you want for each one. Leave a moment unchecked to skip its frame. "
+            "Step 2 of 2. Each section is one shot you kept. "
+            "Every fifth of a second is shown, earlier on the left, so you can pick the frame. "
+            "Dimmer frames sit a few seconds before and after the detected shot, so a camera move is still a choice. "
+            "A time with two decimals is one frame. Saving it saves that picture, not the other frame in the same tenth. "
+            "A softer kept time also shows the sharper frame of that shot, with its own time. "
+            "Check the frames you want. Leave a shot unchecked to skip it. "
             "Copy the box when the frames are confirmed. This page does not change the gallery."
         )
         box = "# step 2: frames\n# 0 chosen\n"
@@ -1488,12 +1951,15 @@ def render_debug(title: str, groups: list[tuple[Event, list[tuple[Event, str, bo
         )
         box = "# step 1: moments\n# 0 chosen\n"
         hint = "step 1: moments"
+    if tabs:
+        lead += " Characters are on their own tabs. A moment with more than one face is listed under each of them."
     body = "\n".join(sections) or "<p>No moments found.</p>"
     page = (
         DEBUG_PAGE.replace("__TITLE__", html.escape(title))
         .replace("__LEAD__", lead)
         .replace("__BOX__", box)
         .replace("__HINT__", hint)
+        .replace("__TABS__", tabs)
         .replace("__BODY__", body)
     )
     return page
@@ -1524,10 +1990,17 @@ DEBUG_PAGE = """<!doctype html>
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.8rem; margin-top: 0.7rem; }
     .pick { display: block; cursor: pointer; overflow: hidden; border: 3px solid transparent; border-radius: 14px; background: var(--soft); }
     .pick:has(input:checked) { border-color: var(--accent); background: #f3f0ff; }
+    .pick.nearby { opacity: 0.72; }
+    .pick.nearby:has(input:checked) { opacity: 1; }
     .pick input { position: absolute; opacity: 0; }
     .pick img { display: block; width: 100%; height: auto; background: #fff; }
     .pick span { display: block; padding: 0.4rem 0.55rem 0.5rem; font-size: 0.86rem; color: var(--muted); }
     .have { margin-left: 0.35rem; font-style: normal; font-weight: 700; color: var(--accent); }
+    .tabs { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.8rem; }
+    .tabs button { display: inline-flex; align-items: center; gap: 0.4rem; background: var(--soft); color: var(--ink); }
+    .tabs button.on { background: var(--accent); color: #fff; }
+    .tabs img { width: 1.8rem; height: 1.8rem; border-radius: 999px; object-fit: cover; background: #fff; }
+    section.is-hidden { display: none; }
   </style>
 </head>
 <body>
@@ -1540,6 +2013,7 @@ DEBUG_PAGE = """<!doctype html>
       <button type="button" class="ghost" id="clear">Clear</button>
     </div>
     <textarea id="choices" spellcheck="false">__BOX__</textarea>
+    __TABS__
   </header>
   <main>
 __BODY__
@@ -1580,11 +2054,325 @@ __BODY__
         button.textContent = "Select the box and copy";
       }
     });
+    const tabs = [...document.querySelectorAll("#tabs [data-tab]")];
+    const showTab = (id) => {
+      document.querySelectorAll("section[data-who]").forEach((sec) => {
+        const whos = (sec.dataset.who || "").split(" ");
+        sec.classList.toggle("is-hidden", id !== "all" && !whos.includes(id));
+      });
+      tabs.forEach((btn) => btn.classList.toggle("on", btn.dataset.tab === id));
+    };
+    tabs.forEach((btn) => btn.addEventListener("click", () => showTab(btn.dataset.tab)));
     sync();
   </script>
 </body>
 </html>
 """
+
+
+def _kept_time(fps: float, t: float) -> float:
+    """The pasted time when it already seeks to this frame.
+
+    Canonical time can be a hundredth earlier, so 0:32.67 became 0:32.66 and the
+    gallery still no longer looked like the kept frame. Keep the time that was
+    pasted when both land on the same picture.
+    """
+    canon = canonical_time(fps, t)
+    if frame_index(fps, t) == frame_index(fps, canon):
+        return round(t, 2)
+    return canon
+
+
+def _join_times(times: list[float]) -> str:
+    """A short list of timestamps for a shot note."""
+    labels = [label(t) for t in times]
+    if not labels:
+        return ""
+    if len(labels) == 1:
+        return labels[0]
+    if len(labels) == 2:
+        return f"{labels[0]} and {labels[1]}"
+    return ", ".join(labels[:-1]) + f", and {labels[-1]}"
+
+
+def _sample_shots(video: Path, step: float = 0.2) -> list[tuple[float, np.ndarray, np.ndarray]]:
+    """Every fifth of a second: time, color histogram, scene vector.
+
+    The time is on the fifth-of-a-second grid, so a strip lines up with the
+    single-still picker. The vectors are only for finding the cut.
+    """
+    cap = cv2.VideoCapture(str(video))
+    if not cap.isOpened():
+        raise SystemExit(f"cannot open video: {video}")
+    fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    samples: list[tuple[float, np.ndarray, np.ndarray]] = []
+    index = 0
+    nxt = 0.0
+    last_print = -10.0
+    while True:
+        ok, bgr = cap.read()
+        if not ok:
+            break
+        t = index / fps
+        if t + 0.5 / fps >= nxt:
+            samples.append((round(nxt, 1), histogram(bgr), scene_vec(bgr)))
+            nxt += step
+            if t - last_print >= 8:
+                print(f"shot sample {t:.0f}s", file=sys.stderr, flush=True)
+                last_print = t
+        index += 1
+        if total and index >= total:
+            break
+    cap.release()
+    return samples
+
+
+def _same_sample(a: tuple[float, np.ndarray, np.ndarray], b: tuple[float, np.ndarray, np.ndarray]) -> bool:
+    """True when two nearby samples are the same cut.
+
+    A blink can drop the color match to about 0.80 without leaving the shot.
+    A real cut drops further, or the scene itself changes.
+    """
+    return float(np.dot(a[1], b[1])) >= 0.75 and float(np.dot(a[2], b[2])) >= 0.90
+
+
+def _shot_continues(samples: list[tuple[float, np.ndarray, np.ndarray]], i: int, j: int) -> bool:
+    """True when sample j is still the shot at i.
+
+    A head turn can make one fifth of a second look like a cut. Look further in
+    that same direction, not back at i. A sample always matches itself, and
+    treating that as a recovery glued the whole video into one shot. A real cut
+    does not match again within the next half-second.
+    """
+    if _same_sample(samples[i], samples[j]):
+        return True
+    step = 1 if j > i else -1
+    k = j + step
+    while 0 <= k < len(samples) and abs(samples[k][0] - samples[i][0]) <= 0.55:
+        if _same_sample(samples[i], samples[k]):
+            return True
+        k += step
+    return False
+
+
+def _shot_span(
+    samples: list[tuple[float, np.ndarray, np.ndarray]],
+    t: float,
+    hint: tuple[np.ndarray, np.ndarray] | None = None,
+) -> tuple[int, int]:
+    """Indexes of the shot that contains ``t``. A cut stops the walk.
+
+    The anchor is the sample that matches the frame at ``t``. A halfway time is
+    0.1s from two samples, and a float tie was landing on the next cut.
+    """
+    near = [i for i in range(len(samples)) if abs(samples[i][0] - t) <= 0.12]
+    if not near:
+        near = [min(range(len(samples)), key=lambda i: abs(samples[i][0] - t))]
+
+    def matches(i: int) -> bool:
+        if hint is None:
+            return False
+        hist = float(np.dot(samples[i][1], hint[0]))
+        scene = float(np.dot(samples[i][2], hint[1]))
+        return hist >= 0.75 and scene >= 0.88
+
+    matched = [i for i in near if matches(i)]
+    pool = matched or near
+    anchor = min(pool, key=lambda i: (round(abs(samples[i][0] - t), 2), i))
+    lo = anchor
+    while lo > 0 and _shot_continues(samples, lo, lo - 1):
+        lo -= 1
+    hi = anchor
+    while hi + 1 < len(samples) and _shot_continues(samples, hi, hi + 1):
+        hi += 1
+    return lo, hi
+
+
+def _same_picture(a: np.ndarray, b: np.ndarray) -> bool:
+    """True when two frames are the same cut, including a small move inside it."""
+    return float(np.dot(histogram(a), histogram(b))) >= 0.75 and float(np.dot(scene_vec(a), scene_vec(b))) >= 0.88
+
+
+def _read_at(cap: cv2.VideoCapture, fps: float, t: float) -> np.ndarray | None:
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index(fps, t))
+    ok, bgr = cap.read()
+    return bgr if ok else None
+
+
+def _clearer_time(cap: cv2.VideoCapture, fps: float, t: float) -> float | None:
+    """A clearly sharper frame of the same shot, within a fifth of a second.
+
+    The tenth that was pasted can be the soft frame. The next frame can be the
+    picture. It is offered beside the pasted time, with its own timestamp, so
+    the two are not saved as the same tenth.
+    """
+    center = frame_index(fps, t)
+    start = max(0, center - 8)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, start)
+    rows: list[tuple[int, np.ndarray, float]] = []
+    index = start
+    while index <= center + 8:
+        ok, bgr = cap.read()
+        if not ok:
+            break
+        cropped = crop_bars(bgr)
+        gray = cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY)
+        rows.append((index, bgr, float(cv2.Laplacian(gray, cv2.CV_64F).var())))
+        index += 1
+    asked = next((row for row in rows if row[0] == center), None)
+    if asked is None:
+        return None
+    pos = next(i for i, row in enumerate(rows) if row[0] == center)
+    keep = {pos}
+    for i in range(pos, 0, -1):
+        if not _same_picture(rows[i - 1][1], rows[i][1]):
+            break
+        keep.add(i - 1)
+    for i in range(pos, len(rows) - 1):
+        if not _same_picture(rows[i][1], rows[i + 1][1]):
+            break
+        keep.add(i + 1)
+    best = max((rows[i] for i in keep), key=lambda row: row[2])
+    if best[0] == center or best[2] < asked[2] * 1.6 or best[2] < asked[2] + 25:
+        return None
+    return canonical_time(fps, best[0] / fps)
+
+
+def shot_strips(video: Path, moments: list[Event], stills: list[Still]) -> list[tuple[Event, list[Event]]]:
+    """One strip per shot. Every fifth of a second, earlier first.
+
+    A kept moment is a time inside a shot, not a short list of ranked frames.
+    The shot is the one the frame at that time belongs to, not the sample a
+    float tie lands on. Two kept times in the same shot share one strip. A
+    gallery still inside the shot is included so it can be marked. A clearly
+    sharper frame of that same shot is added with its own time. A few seconds
+    before and after the detected cut are included too, marked as nearby, so a
+    camera move is still a choice. This does not change the gallery.
+    """
+    if not moments:
+        return []
+    print("sampling shots every 0.2s", file=sys.stderr, flush=True)
+    samples = _sample_shots(video)
+    if not samples:
+        raise SystemExit(f"no frames in {video}")
+    cap = cv2.VideoCapture(str(video))
+    if not cap.isOpened():
+        raise SystemExit(f"cannot open video: {video}")
+    fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
+    rows: list[tuple[int, int, Event]] = []
+    clearer: dict[int, float] = {}
+    for moment in moments:
+        bgr = _read_at(cap, fps, moment.t)
+        hint = (histogram(bgr), scene_vec(bgr)) if bgr is not None else None
+        lo, hi = _shot_span(samples, moment.t, hint)
+        alt = _clearer_time(cap, fps, moment.t)
+        if alt is not None and abs(alt - moment.t) >= 0.015:
+            clearer[id(moment)] = alt
+            print(f"  {label(moment.t)} is soft; sharper frame {label(alt)}", file=sys.stderr)
+        rows.append((lo, hi, moment))
+    cap.release()
+    rows.sort(key=lambda row: (row[0], row[2].t))
+    merged: list[tuple[int, int, list[Event]]] = []
+    for lo, hi, moment in rows:
+        if merged and lo <= merged[-1][1]:
+            prev_lo, prev_hi, group = merged[-1]
+            merged[-1] = (prev_lo, max(prev_hi, hi), group + [moment])
+        else:
+            merged.append((lo, hi, [moment]))
+    groups: list[tuple[Event, list[Event]]] = []
+    for lo, hi, group in merged:
+        group.sort(key=lambda event: event.t)
+        ids: list[int] = []
+        for moment in group:
+            for who in _tab_ids(moment):
+                if who not in ids:
+                    ids.append(who)
+        who_notes = ["others" if who == 0 else f"character {who}" for who in ids]
+        if not who_notes and any("soyeon" in moment.reasons for moment in group):
+            who_notes = ["soyeon"]
+        kept = [_kept_time(fps, moment.t) for moment in group]
+        rep = replace(
+            group[0],
+            cast_ids=ids,
+            shot_lo=samples[lo][0],
+            shot_hi=samples[hi][0],
+            kept_times=kept,
+            reasons=["kept", *who_notes],
+        )
+        times = [canonical_time(fps, samples[i][0]) for i in range(lo, hi + 1)]
+        # A pan or a zoom can look like a cut. Offer a few seconds past the
+        # detected edges too, so a frame before or after the shot can be chosen.
+        # Those stay marked as nearby and do not change where the shot was found.
+        pad = 3.0
+        edge = {t: False for t in times}
+        for i in range(len(samples)):
+            t = samples[i][0]
+            if t < samples[lo][0] - pad or t > samples[hi][0] + pad:
+                continue
+            key = canonical_time(fps, t)
+            if any(abs(key - have) < 0.015 for have in edge):
+                continue
+            edge[key] = not (samples[lo][0] - 0.05 <= t <= samples[hi][0] + 0.05)
+        extras = [*kept, *[clearer.get(id(moment)) for moment in group], *[still.seconds() for still in stills]]
+        for extra in extras:
+            if extra is None:
+                continue
+            forced = any(abs(extra - k) < 0.015 for k in kept) or any(
+                alt is not None and abs(extra - alt) < 0.015 for alt in (clearer.get(id(moment)) for moment in group)
+            )
+            inside = samples[lo][0] - 0.12 <= extra <= samples[hi][0] + 0.12
+            key = canonical_time(fps, extra)
+            if (forced or inside) and not any(abs(key - have) < 0.015 for have in edge):
+                edge[key] = False
+        bucket: list[Event] = []
+        seen_shown: set[int] = set()
+        for t in sorted(edge):
+            match = [k for k in kept if abs(t - k) < 0.015]
+            shown = match[0] if match else t
+            key = int(round(shown * 100))
+            if key in seen_shown:
+                continue
+            seen_shown.add(key)
+            bucket.append(Event(
+                t=shown,
+                sharp=group[0].sharp,
+                shot=group[0].shot,
+                reasons=(["kept moment"] if match else ["choice"]) + who_notes,
+                faces=list(group[0].faces),
+                cast_ids=list(ids),
+                nearby=edge[t] and not match,
+            ))
+        groups.append((rep, bucket))
+    return groups
+
+
+def _read_frames(video: Path, events: list[Event]) -> dict[float, np.ndarray]:
+    """Decode each asked timestamp once, walking forward through the video."""
+    if not events:
+        return {}
+    cap = cv2.VideoCapture(str(video))
+    if not cap.isOpened():
+        raise SystemExit(f"cannot open video: {video}")
+    fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
+    wanted: dict[int, float] = {}
+    for event in events:
+        wanted[frame_index(fps, event.t)] = round(event.t, 3)
+    start = min(wanted)
+    last = max(wanted)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, start)
+    found: dict[float, np.ndarray] = {}
+    index = start
+    while index <= last:
+        ok, bgr = cap.read()
+        if not ok:
+            break
+        key = wanted.get(index)
+        if key is not None:
+            found[key] = bgr
+        index += 1
+    cap.release()
+    return found
 
 
 def write_debug(
@@ -1594,11 +2382,12 @@ def write_debug(
     choices: list[Event],
     dest: Path | None,
     step: str = "moments",
+    strips: list[tuple[Event, list[Event]]] | None = None,
 ) -> Path:
     """Write one debug step. Pictures go in a debug folder, never into the gallery.
 
     Step 1 writes one frame per moment, so the beat can be kept or dropped.
-    Step 2 writes the frames around moments that were already kept.
+    Step 2 writes every fifth of a second of each kept shot.
     """
     media, who = media_of(page)
     _, stills, _ = parse_stills(page.read_text())
@@ -1606,7 +2395,8 @@ def write_debug(
     if not out.is_absolute():
         out = (Path.cwd() / out).resolve()
     frames = out / "frames"
-    groups = group_by_moment(moments, choices if step == "frames" else moments)
+    groups = strips if strips is not None else group_by_moment(moments, choices if step == "frames" else moments)
+    images = _read_frames(video, [event for _moment, bucket in groups for event in bucket]) if strips is not None else {}
     rendered: list[tuple[Event, list[tuple[Event, str, bool]]]] = []
     total = sum(len(bucket) for _, bucket in groups)
     done = 0
@@ -1614,7 +2404,10 @@ def write_debug(
         cards: list[tuple[Event, str, bool]] = []
         for event in bucket:
             name = stamp(event.t) + ".jpg"
-            debug_jpeg(frames / name, grab_at(video, event.t))
+            bgr = images.get(round(event.t, 3))
+            if bgr is None:
+                bgr = grab_at(video, event.t)
+            debug_jpeg(frames / name, bgr)
             cards.append((event, f"frames/{name}", in_gallery(event, stills)))
             done += 1
             if done % 8 == 0 or done == total:
@@ -1622,9 +2415,11 @@ def write_debug(
         rendered.append((moment, cards))
     found = re.search(r'^title = "([^"]*)"', page.read_text(), re.M)
     title = found.group(1) if found else who
+    thumbs = _write_cast_thumbs(video, frames) if page_is_trailer(page) else {}
+    tabs = _cast_tab_bar([moment for moment, _cards in rendered], thumbs)
     name = "frames.html" if step == "frames" else "index.html"
     path = out / name
-    path.write_text(render_debug(title, rendered, step))
+    path.write_text(render_debug(title, rendered, step, tabs))
     return path
 
 
@@ -1648,7 +2443,7 @@ def parse_frame_times(text: str) -> list[float]:
     return times
 
 
-def moments_at(events: list[Event], times: list[float]) -> list[Event]:
+def moments_at(events: list[Event], times: list[float], cast: bool = False) -> list[Event]:
     """The confirmed beats, at the times that were kept.
 
     Step 2 does not move a beat. A marked time the face match missed stays put,
@@ -1659,16 +2454,22 @@ def moments_at(events: list[Event], times: list[float]) -> list[Event]:
         raise SystemExit("no timestamps in --frames; paste the step-1 textbox, or pass 6,23.5,62.8")
     found: list[Event] = []
     seen: set[int] = set()
+    step = _step(events)
     for asked in times:
-        event = min(events, key=lambda item: abs(item.t - asked))
-        key = int(round(event.t * 10))
+        index = min(range(len(events)), key=lambda i: abs(events[i].t - asked))
+        key = int(round(asked * 100))
         if key in seen:
             continue
         seen.add(key)
-        event.reasons = ["moment", "kept", "soyeon"]
+        # Keep the time that was pasted. Rounding to a tenth made 0:32.67 into
+        # 0:32.7, a different frame, so the gallery still was no longer the kept one.
+        event = replace(events[index], t=round(asked, 2), reasons=["moment", "kept"])
+        if cast:
+            event.cast_ids = _cast_ids_near(events, index, step)
+            event.reasons.extend(_who_labels(event))
+        else:
+            event.reasons.append("soyeon")
         found.append(event)
-        if abs(event.t - asked) > 0.2:
-            print(f"  {label(asked)} snapped to {label(event.t)}", file=sys.stderr)
     found.sort(key=lambda event: event.t)
     return found
 
@@ -1679,50 +2480,90 @@ def cmd_at(video: Path, page: Path, at: float, window: float) -> None:
     print(f"{src}  {label(t)}  (asked {at:.1f}s, sharpest within {window:.2f}s)")
 
 
-def cmd_final(video: Path, page: Path, text: str, window: float) -> None:
-    """Step 3. Write the frame that matches each chosen timestamp.
+def _picture_gap(a: np.ndarray, b: np.ndarray) -> float:
+    """How far apart two frames look. The same picture stays under 1; a new frame does not."""
+    left = cv2.cvtColor(cv2.resize(a, (96, 54)), cv2.COLOR_BGR2GRAY).astype(np.float32)
+    right = cv2.cvtColor(cv2.resize(b, (96, 54)), cv2.COLOR_BGR2GRAY).astype(np.float32)
+    return float(np.abs(left - right).mean())
 
-    The time is the one copied from the step-2 textbox. The saved frame is that
-    video frame when it is in focus. A soft pick is replaced by the nearest
-    in-focus frame of the same shot. One chosen time is one gallery still: an
-    older still of that same beat is replaced by the frame that was chosen.
+
+def cmd_final(video: Path, page: Path, text: str, window: float) -> None:
+    """Step 3. The textbox is the gallery. A checked frame is the frame that is saved.
+
+    Nothing is swapped for a sharper neighbor. A time that was not checked is
+    removed, including an older still of the same beat. The same picture already
+    saved under an older timestamp keeps its file and takes the checked time.
     """
+    del window  # The chosen frame is the frame. A sharper neighbor is a different picture.
     times = parse_frame_times(text)
     if not times:
         raise SystemExit("no timestamps in --final; paste the step-2 textbox")
     head, stills, tail = parse_stills(page.read_text())
     media, who = media_of(page)
+    fps = _fps_of(video)
+    kept: list[Still] = []
+    used: set[int] = set()
     added = 0
-    replaced = 0
+    relabeled = 0
     for asked in times:
-        t, bgr = grab_final(video, asked, window)
+        t = canonical_time(fps, asked)
         at = label(t)
-        same = [row for row in stills if abs(row.seconds() - t) < 0.45]
-        exact = [row for row in same if abs(row.seconds() - t) < 0.04]
-        if exact:
-            print(f"  {label(asked)} already in gallery as {label(t)}")
+        name = stamp(t) + ".jpg"
+        exact = next((i for i, row in enumerate(stills) if i not in used and Path(row.src).name == name), None)
+        if exact is not None:
+            used.add(exact)
+            kept.append(stills[exact])
+            print(f"  kept {stills[exact].at}")
             continue
-        for row in same:
+        bgr = crop_bars(grab_at(video, t))
+        match = None
+        for i, row in enumerate(stills):
+            if i in used or abs(row.seconds() - t) > 0.5:
+                continue
             old = media / Path(row.src).name
-            if old.exists():
-                old.unlink()
-            stills.remove(row)
-            replaced += 1
-            print(f"  replaced {row.at} with {at}")
-        name = fresh_name(media, t)
+            if not old.exists():
+                continue
+            previous = cv2.imread(str(old))
+            if previous is not None and _picture_gap(bgr, previous) < 1.2:
+                match = i
+                break
+        if match is not None:
+            row = stills[match]
+            used.add(match)
+            old = media / Path(row.src).name
+            if old.name != name:
+                dest = media / name
+                if dest.exists():
+                    dest.unlink()
+                old.rename(dest)
+                relabeled += 1
+                print(f"  labeled {row.at} as {at}")
+            else:
+                print(f"  kept {at}")
+            src = f"/media/{media.name}/{name}"
+            kept.append(Still(src, alt_for(stills or kept, who, at), at))
+            continue
         src = f"/media/{media.name}/{name}"
-        still = Still(src, alt_for(stills, who, at), at)
+        still = Still(src, alt_for(stills or kept, who, at), at)
         save_jpeg(media / name, bgr)
-        stills.append(still)
+        kept.append(still)
         added += 1
-        moved = "" if abs(t - asked) < 0.03 else f"  (asked {label(asked)}, in-focus frame of that shot)"
-        print(f"{src}  {at}{moved}")
-    if not added and not replaced:
-        print(f"added 0, gallery {len(stills)}")
+        print(f"{src}  {at}")
+    removed = 0
+    for i, row in enumerate(stills):
+        if i in used:
+            continue
+        old = media / Path(row.src).name
+        if old.exists():
+            old.unlink()
+        removed += 1
+        print(f"  removed {row.at}")
+    if not added and not removed and not relabeled:
+        print(f"added 0, removed 0, gallery {len(kept)}")
         return
-    stills.sort(key=lambda row: (row.seconds(), row.src))
-    write_page(page, head, stills, tail)
-    print(f"added {added}, replaced {replaced}, gallery {len(stills)}")
+    kept.sort(key=lambda row: (row.seconds(), row.src))
+    write_page(page, head, kept, tail)
+    print(f"added {added}, relabeled {relabeled}, removed {removed}, gallery {len(kept)}")
 
 
 def cmd_scan(
@@ -1737,19 +2578,21 @@ def cmd_scan(
     frames: str | None,
 ) -> None:
     events = scan(video, page, step)
+    cast = page_is_trailer(page)
     if frames is not None:
         # Step 2 starts only after the moments are confirmed. It does not invent new beats.
-        found = moments_at(events, parse_frame_times(frames))
-        chosen = choices_around(events, found, per, video, page)
-        print(f"kept moments {len(found)}, frames to choose {len(chosen)}")
-        for event in chosen:
-            why = ",".join(event.reasons) or "choice"
-            print(f"  {label(event.t)}  {why}")
-        path = write_debug(video, page, found, chosen, debug_out, "frames")
+        found = moments_at(events, parse_frame_times(frames), cast)
+        _, stills, _ = parse_stills(page.read_text())
+        strips = shot_strips(video, found, stills)
+        nframes = sum(len(bucket) for _moment, bucket in strips)
+        print(f"kept moments {len(found)}, shots {len(strips)}, frames to choose {nframes}")
+        for moment, bucket in strips:
+            print(f"  {label(moment.shot_lo)}–{label(moment.shot_hi)}  {len(bucket)} frames  kept {_join_times(moment.kept_times)}")
+        path = write_debug(video, page, found, [], debug_out, "frames", strips)
         print(f"frames page {path}")
         print("gallery unchanged — copy the textbox to confirm the frames")
         return
-    found = moments_of(events, limit, _known_times(page))
+    found = moments_of(events, limit, _known_times(page), cast)
     if debug:
         # Step 1 is the moment list. One frame stands in for the beat. No frame picking yet.
         print(f"moments {len(found)}")
@@ -1760,7 +2603,7 @@ def cmd_scan(
         print(f"debug page {path}")
         print("gallery unchanged — step 1 only; copy the textbox, then run --frames with those times")
         return
-    chosen = choices_around(events, found, per, video, page)
+    chosen = choices_around(events, found, per, video, page, cast)
     print(f"moments {len(found)}, frames to choose {len(chosen)}")
     for event in chosen:
         why = ",".join(event.reasons) or "choice"
@@ -1811,11 +2654,11 @@ def main() -> None:
     parser.add_argument("--window", type=float, default=0.35, help="Search +/- this many seconds around --at")
     parser.add_argument("--step", type=float, default=0.25, help="Scan interval in seconds")
     parser.add_argument("--moments", type=int, default=None, help="Optional ceiling. Omit it and the scan decides how many moments the video has")
-    parser.add_argument("--per", type=int, default=3, help="Frames to keep around each moment, for choosing")
+    parser.add_argument("--per", type=int, default=3, help="Auto-gen only. Frames to keep around each moment. Step 2 shows the whole shot")
     parser.add_argument("--dry-run", action="store_true", help="Print the moments and choices, write nothing")
-    parser.add_argument("--debug", action="store_true", help="Step 1. One frame per moment, so the beats can be kept or dropped. Does not change the gallery")
-    parser.add_argument("--frames", help="Step 2. Timestamps kept in step 1 (a textbox paste, or 6,23.5,62.8). Writes frames around those moments only")
-    parser.add_argument("--final", help="Step 3. Timestamps kept in step 2. Saves the matching video frame, or a sharper frame of the same shot")
+    parser.add_argument("--debug", action="store_true", help="Step 1. One frame per moment, so the beats can be kept or dropped. A trailer splits those moments into a tab per character. Does not change the gallery")
+    parser.add_argument("--frames", help="Step 2. Timestamps kept in step 1 (a textbox paste, or 6,23.5,62.8). Shows every fifth of a second of each kept shot")
+    parser.add_argument("--final", help="Step 3. The step-2 textbox. Saves each checked frame and removes every still that was not checked")
     parser.add_argument("--focus", type=float, default=0.5, help="Step 3 may move this many seconds to the nearest in-focus frame of the same shot")
     parser.add_argument("--debug-out", type=Path, help="Folder for the debug page (default tools/debug/<slug>)")
     parser.add_argument("--build", action="store_true", help="Rebuild the site after writing")

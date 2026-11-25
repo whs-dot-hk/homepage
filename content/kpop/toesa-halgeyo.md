@@ -2,7 +2,7 @@
 title = "소연 (SOYEON) '퇴사할게여 (Narr. 기안84)' Official Music Video Overview"
 description = ""
 date = 2026-11-24T07:11:46Z
-updated = 2026-11-24T13:08:45Z
+updated = 2026-11-24T15:57:55Z
 template = "gallery.html"
 
 [taxonomies]
@@ -107,11 +107,6 @@ at = "1:22.0"
 src = "/media/toesa-halgeyo/01m33.2s.jpg"
 alt = "Soyeon in 퇴사할게여 at 1:33.2"
 at = "1:33.2"
-
-[[extra.stills]]
-src = "/media/toesa-halgeyo/01m48s.jpg"
-alt = "Soyeon in 퇴사할게여 at 1:48.0"
-at = "1:48.0"
 
 [[extra.stills]]
 src = "/media/toesa-halgeyo/02m00.7s.jpg"

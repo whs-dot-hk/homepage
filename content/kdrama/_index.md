@@ -1,6 +1,6 @@
 +++
 title = "K-drama"
-description = "Nothing in this section yet."
+description = "Official trailers, still by still."
 template = "category.html"
 sort_by = "date"
 [extra]
