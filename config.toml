@@ -34,3 +34,7 @@ slug = "kpop"
 [[extra.categories]]
 title = "K-drama"
 slug = "kdrama"
+
+[[extra.categories]]
+title = "Movies"
+slug = "movies"
