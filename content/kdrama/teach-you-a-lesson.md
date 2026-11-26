@@ -13,6 +13,7 @@ category_slug = "kdrama"
 korean = "참교육"
 trailer = "LdezlX84py0"
 poster = "/media/teach-you-a-lesson/poster.jpg"
+poster_top = true
 video_title = "Teach You a Lesson official trailer"
 video_label = "Official trailer"
 video_upload = "2026-05-19T00:00:00Z"

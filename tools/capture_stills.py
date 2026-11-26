@@ -167,8 +167,14 @@ def content_box(bgr: np.ndarray, thresh: int = 8) -> tuple[int, int, int, int]:
     h, w = gray.shape
     rows = gray.mean(axis=1)
     dark = rows < thresh
-    top = int(dark[: h // 3].sum()) if dark[0] else 0
-    bottom = int(dark[-(h // 3) :].sum()) if dark[-1] else 0
+    top = 0
+    if dark[0]:
+        while top < h // 3 and dark[top]:
+            top += 1
+    bottom = 0
+    if dark[-1]:
+        while bottom < h // 3 and dark[h - 1 - bottom]:
+            bottom += 1
     if top < 8:
         top = 0
     if bottom < 8:

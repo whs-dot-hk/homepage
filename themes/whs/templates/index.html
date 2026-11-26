@@ -54,6 +54,7 @@
 {% if total > 1 %}
 <div class="mx-auto mt-11 mb-16 w-[min(76rem,calc(100%-1.5rem))] sm:w-[min(76rem,calc(100%-2.5rem))]">
   {% for cat in config.extra.categories %}
+  {% if cat.slug %}
   {% set cat_section = get_section(path=cat.slug ~ "/_index.md") %}
   {% if cat_section.pages %}
   <section class="border-t border-line pt-6" aria-label="{{ cat.title }}">
@@ -68,6 +69,7 @@
       {% endfor %}
     </div>
   </section>
+  {% endif %}
   {% endif %}
   {% endfor %}
 </div>
