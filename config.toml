@@ -28,6 +28,10 @@ adsense_meta = '<meta name="google-adsense-account" content="ca-pub-774771245488
 adsense_client = "ca-pub-7747712454888576"
 
 [[extra.categories]]
+title = "Home"
+slug = ""
+
+[[extra.categories]]
 title = "K-pop"
 slug = "kpop"
 
