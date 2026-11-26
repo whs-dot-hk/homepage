@@ -40,5 +40,9 @@ title = "K-drama"
 slug = "kdrama"
 
 [[extra.categories]]
+title = "J-drama"
+slug = "jdrama"
+
+[[extra.categories]]
 title = "Movies"
 slug = "movies"
