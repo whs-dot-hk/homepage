@@ -44,13 +44,14 @@
 
 {% block content %}
 <article class="pb-6">
-  <header class="relative bg-[#100e16] text-white">
+  <header class="relative isolate bg-[#100e16] text-white">
     {% if page.extra.poster %}
-    <img class="block h-auto max-h-screen w-full object-cover object-center" src="{{ page.extra.poster }}" alt="">
+    <img class="block h-auto w-full" src="{{ page.extra.poster }}" alt="">
     {% elif page.extra.trailer %}
-    <img class="block h-auto max-h-screen w-full object-cover object-center" src="https://i.ytimg.com/vi/{{ page.extra.trailer }}/maxresdefault.jpg" alt="">
+    <img class="block h-auto w-full" src="https://i.ytimg.com/vi/{{ page.extra.trailer }}/maxresdefault.jpg" alt="">
     {% endif %}
-    <div class="relative py-4">
+    <div class="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(10,8,16,0.18)_0%,rgba(10,8,16,0.08)_32%,rgba(10,8,16,0.55)_58%,rgba(10,8,16,0.94)_100%)]" aria-hidden="true"></div>
+    <div class="absolute inset-x-0 bottom-0 z-[1] py-4">
     <div class="relative mx-auto w-[min(76rem,calc(100%-1.5rem))] sm:w-[min(76rem,calc(100%-2.5rem))]">
       <p class="mb-4"><a class="text-xs font-bold tracking-[0.07em] text-[#d5ccff] uppercase no-underline" href="/{{ page.extra.category_slug }}/">{{ page.extra.category }}</a></p>
       {% if page.extra.korean %}<p class="m-0 font-['Noto_Sans_KR'] text-[clamp(2.2rem,5vw,3.6rem)] leading-none font-bold tracking-[-0.06em] text-white" lang="ko">{{ page.extra.korean }}</p>{% endif %}
