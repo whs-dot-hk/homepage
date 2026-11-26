@@ -8,8 +8,8 @@ template = "gallery.html"
 [taxonomies]
 collections = ["Article"]
 [extra]
-category = "Movies"
-category_slug = "movies"
+category = "K-drama"
+category_slug = "kdrama"
 korean = "오징어 게임"
 trailer = "oqxAJKy0ii4"
 poster = "/media/squid-game/poster.jpg"

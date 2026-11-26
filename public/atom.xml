@@ -16,10 +16,10 @@
           <name>Unknown</name>
         </author>
         
-        <link rel="alternate" type="text/html" href="/movies/squid-game/"/>
-        <id>/movies/squid-game/</id>
+        <link rel="alternate" type="text/html" href="/kdrama/squid-game/"/>
+        <id>/kdrama/squid-game/</id>
         
-        <content type="html" xml:base="/movies/squid-game/"></content>
+        <content type="html" xml:base="/kdrama/squid-game/"></content>
         
     </entry>
     <entry xml:lang="en">
