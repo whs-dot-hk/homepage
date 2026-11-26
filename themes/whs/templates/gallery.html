@@ -44,7 +44,7 @@
 <article class="pb-6">
   <header class="relative isolate min-h-[26rem] overflow-hidden bg-[#100e16] text-white sm:min-h-[32rem]">
     {% if page.extra.poster %}
-    <img class="absolute inset-0 h-full w-full object-cover object-[center_28%]" src="{{ page.extra.poster }}" alt="">
+    <img class="absolute inset-0 h-full w-full object-cover {% if page.extra.poster_top %}object-top{% else %}object-[center_28%]{% endif %}" src="{{ page.extra.poster }}" alt="">
     {% elif page.extra.trailer %}
     <img class="absolute inset-0 h-full w-full object-cover object-[center_28%]" src="https://i.ytimg.com/vi/{{ page.extra.trailer }}/maxresdefault.jpg" alt="">
     {% endif %}

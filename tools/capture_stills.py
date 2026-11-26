@@ -444,11 +444,17 @@ CAST_BEST: dict[int, tuple[float, np.ndarray]] = {}
 def page_is_trailer(page: Path) -> bool:
     """Trailers have many characters, so the one-lead filter stays off.
 
-    K-drama pages are trailers. Any page marked as an official trailer is too.
-    A one-person music video is not.
+    K-drama, movie, and lyric-video pages are multi-character. Any page marked as
+    an official trailer is too. A one-person music video is not.
     """
     text = page.read_text()
-    return 'category_slug = "kdrama"' in text or 'video_label = "Official trailer"' in text
+    # A lyric video has a cast, same as a trailer. A one-person music video does not.
+    return (
+        'category_slug = "kdrama"' in text
+        or 'category_slug = "movies"' in text
+        or 'video_label = "Official trailer"' in text
+        or 'video_label = "Official lyric video"' in text
+    )
 
 
 def _has_person(event: Event) -> bool:
