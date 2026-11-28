@@ -91,5 +91,43 @@
     }, { rootMargin: "-20% 0px -65% 0px", threshold: 0 });
     heads.forEach(function (el) { obs.observe(el); });
   })();
+
+  (function () {
+    var imgs = document.querySelectorAll(".prose img");
+    if (!imgs.length) return;
+    var overlay = document.createElement("div");
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-label", "Zoomed image");
+    overlay.style.cssText = "display:none;position:fixed;inset:0;z-index:9999;background:rgba(12,10,18,0.92);align-items:center;justify-content:center;padding:1.5rem;cursor:zoom-out;";
+    var zoomImg = document.createElement("img");
+    zoomImg.style.cssText = "max-width:96vw;max-height:94vh;width:auto;height:auto;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,0.6);object-fit:contain;";
+    var closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.textContent = "×";
+    closeBtn.setAttribute("aria-label", "Close zoomed image");
+    closeBtn.style.cssText = "position:fixed;top:1rem;right:1.25rem;background:rgba(255,255,255,0.14);color:#fff;border:0;border-radius:9999px;width:2.5rem;height:2.5rem;font-size:1.5rem;line-height:1;cursor:pointer;";
+    overlay.appendChild(zoomImg);
+    overlay.appendChild(closeBtn);
+    document.body.appendChild(overlay);
+    function close() {
+      overlay.style.display = "none";
+      zoomImg.removeAttribute("src");
+    }
+    overlay.addEventListener("click", close);
+    closeBtn.addEventListener("click", close);
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && overlay.style.display === "flex") close();
+    });
+    imgs.forEach(function (img) {
+      img.style.cursor = "zoom-in";
+      img.title = "Click to zoom";
+      img.addEventListener("click", function () {
+        zoomImg.src = img.src;
+        zoomImg.alt = img.alt || "";
+        overlay.style.display = "flex";
+      });
+    });
+  })();
 </script>
 {% endblock %}

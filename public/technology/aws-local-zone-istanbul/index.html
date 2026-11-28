@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+  <meta name="google-adsense-account" content="ca-pub-7747712454888576">
+  
+  <title>Get started with the AWS Local Zone in Istanbul — WHS</title>
+  <meta name="description" content="Step-by-step walkthrough from opting in to the Istanbul Local Zone (eu-central-1-ist-1a), creating a VPC with one Local Zone subnet, to launching a Debian EC2 instance.">
+  <meta name="theme-color" content="#ffffff">
+  <meta property="og:title" content="Get started with the AWS Local Zone in Istanbul">
+  <meta property="og:description" content="Step-by-step walkthrough from opting in to the Istanbul Local Zone (eu-central-1-ist-1a), creating a VPC with one Local Zone subnet, to launching a Debian EC2 instance.">
+  <meta property="og:type" content="article">
+  
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,650&family=Noto+Sans+KR:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7747712454888576" crossorigin="anonymous"></script>
+  
+  
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Get started with the AWS Local Zone in Istanbul",
+  "description": "Step-by-step walkthrough from opting in to the Istanbul Local Zone (eu-central-1-ist-1a), creating a VPC with one Local Zone subnet, to launching a Debian EC2 instance.",
+  "datePublished": "2026-11-28T07:50:00Z",
+  "dateModified": "2026-11-28T08:10:00Z",
+  "inLanguage": "en",
+  "author": { "@type": "Organization", "name": "WHS" },
+  "publisher": { "@type": "Organization", "name": "WHS" }
+}
+</script>
+
+</head>
+<body class="m-0 bg-white font-sans text-[1.0625rem] leading-[1.75] text-ink antialiased">
+  <a class="absolute top-[-4rem] left-4 z-30 rounded-lg bg-accent px-3 py-2 text-white no-underline focus:top-3" href="#content">Skip to content</a>
+  <header class="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur-lg">
+    <div class="mx-auto flex min-h-[3.15rem] w-[min(76rem,calc(100%-1.5rem))] items-center gap-4 sm:w-[min(76rem,calc(100%-2.5rem))]">
+      <a class="flex items-center gap-3 text-inherit no-underline" href="/">
+        <span class="flex text-accent" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><path fill="none" stroke="#fff" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round" d="M4 16.8C4.57 16.8 5.13 14.8 5.7 14.8 6.3 14.8 6.9 18.6 7.5 18.6 8.4 18.6 9.3 8.8 10.2 8.8 11.2 8.8 12.2 23.8 13.2 23.8 14.13 23.8 15.07 6.8 16 6.8 16.93 6.8 17.87 23.8 18.8 23.8 19.8 23.8 20.8 8.8 21.8 8.8 22.7 8.8 23.6 18.6 24.5 18.6 25.1 18.6 25.7 14.8 26.3 14.8 26.87 14.8 27.43 16.8 28 16.8"/></svg>
+        </span>
+        <span class="flex flex-col leading-none"><strong class="text-base tracking-[-0.03em]">WHS</strong></span>
+      </a>
+    </div>
+    <div class="border-t border-line">
+      <div class="mx-auto w-[min(76rem,calc(100%-1.5rem))] sm:w-[min(76rem,calc(100%-2.5rem))]">
+        <nav class="flex gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Sections">
+          
+          
+          <a class="shrink-0 border-b-2 border-transparent px-3 py-3 text-[0.92rem] font-[650] tracking-[-0.02em] text-ink no-underline hover:text-accent-dark aria-[current=page]:border-accent aria-[current=page]:text-accent-dark sm:px-4 sm:text-[0.98rem]" href="/" >Home</a>
+          
+          
+          <a class="shrink-0 border-b-2 border-transparent px-3 py-3 text-[0.92rem] font-[650] tracking-[-0.02em] text-ink no-underline hover:text-accent-dark aria-[current=page]:border-accent aria-[current=page]:text-accent-dark sm:px-4 sm:text-[0.98rem]" href="/kpop/" >K-pop</a>
+          
+          
+          <a class="shrink-0 border-b-2 border-transparent px-3 py-3 text-[0.92rem] font-[650] tracking-[-0.02em] text-ink no-underline hover:text-accent-dark aria-[current=page]:border-accent aria-[current=page]:text-accent-dark sm:px-4 sm:text-[0.98rem]" href="/kdrama/" >K-drama</a>
+          
+          
+          <a class="shrink-0 border-b-2 border-transparent px-3 py-3 text-[0.92rem] font-[650] tracking-[-0.02em] text-ink no-underline hover:text-accent-dark aria-[current=page]:border-accent aria-[current=page]:text-accent-dark sm:px-4 sm:text-[0.98rem]" href="/jdrama/" >J-drama</a>
+          
+          
+          <a class="shrink-0 border-b-2 border-transparent px-3 py-3 text-[0.92rem] font-[650] tracking-[-0.02em] text-ink no-underline hover:text-accent-dark aria-[current=page]:border-accent aria-[current=page]:text-accent-dark sm:px-4 sm:text-[0.98rem]" href="/movies/" >Movies</a>
+          
+          
+          <a class="shrink-0 border-b-2 border-transparent px-3 py-3 text-[0.92rem] font-[650] tracking-[-0.02em] text-ink no-underline hover:text-accent-dark aria-[current=page]:border-accent aria-[current=page]:text-accent-dark sm:px-4 sm:text-[0.98rem]" href="/technology/" >Technology</a>
+          
+        </nav>
+      </div>
+    </div>
+  </header>
+  <main id="content">
+    
+<article class="mx-auto w-[min(43rem,calc(100%-1.5rem))] pb-16 sm:w-[min(43rem,calc(100%-2.5rem))]">
+  <header class="pt-8 sm:pt-13">
+    <p class="mb-4"><a class="text-xs font-bold tracking-[0.07em] text-accent-dark uppercase no-underline" href="/technology/">Technology</a></p>
+    <h1 class="m-0 font-serif text-[clamp(2.2rem,4.6vw,3.15rem)] leading-[1.08] font-[650] tracking-[-0.035em]">Get started with the AWS Local Zone in Istanbul</h1>
+    <p class="mt-4 text-[1.16rem] leading-snug text-[#3c3848]">Step-by-step walkthrough from opting in to the Istanbul Local Zone (eu-central-1-ist-1a), creating a VPC with one Local Zone subnet, to launching a Debian EC2 instance.</p>
+    <p class="mt-4 flex flex-wrap gap-x-2 gap-y-1 text-[0.92rem] text-muted">
+      
+  
+
+
+<time datetime="2026-11-28">Nov 28, 2026</time>
+
+
+      <span aria-hidden="true">·</span>
+      <span>4 min read</span>
+    </p>
+  </header>
+
+  <div>
+    
+    <nav class="mt-7 rounded-2xl bg-soft px-4 pt-4 pb-3" aria-label="On this page">
+      <p class="mb-1 text-xs font-bold tracking-[0.06em] text-muted uppercase">On this page</p>
+      <ol class="m-0 grid list-none grid-cols-1 gap-x-5 p-0 sm:grid-cols-2">
+        
+          
+          <li><a class="block py-1 text-[0.94rem] leading-snug font-medium text-[#2c2938] no-underline hover:text-accent-dark [&.is-active]:text-accent-dark" href="#1-opt-in-to-the-istanbul-local-zone">1. Opt in to the Istanbul Local Zone</a></li>
+          
+        
+          
+          <li><a class="block py-1 text-[0.94rem] leading-snug font-medium text-[#2c2938] no-underline hover:text-accent-dark [&.is-active]:text-accent-dark" href="#2-create-a-vpc-with-one-istanbul-local-zone-subnet">2. Create a VPC with one Istanbul Local Zone subnet</a></li>
+          
+        
+          
+          <li><a class="block py-1 text-[0.94rem] leading-snug font-medium text-[#2c2938] no-underline hover:text-accent-dark [&.is-active]:text-accent-dark" href="#3-launch-a-debian-ec2-vm-in-the-istanbul-local-zone">3. Launch a Debian EC2 VM in the Istanbul Local Zone</a></li>
+          
+        
+          
+          <li><a class="block py-1 text-[0.94rem] leading-snug font-medium text-[#2c2938] no-underline hover:text-accent-dark [&.is-active]:text-accent-dark" href="#4-walkthrough-video">4. Walkthrough video</a></li>
+          
+        
+      </ol>
+    </nav>
+    
+    <div class="prose">
+      <p>AWS Local Zones bring compute, storage, and networking closer to end users for single-digit millisecond latency. The <strong>Istanbul Local Zone</strong> (<code>eu-central-1-ist-1a</code>, Zone ID <code>euc1-ist1-az1</code>) extends the <strong>Europe (Frankfurt)</strong> (<code>eu-central-1</code>) parent region.</p>
+<p>This walkthrough covers the full end-to-end flow in the AWS Management Console (click any screenshot to zoom in):</p>
+<ol>
+<li>Opting in to the Istanbul Local Zone via AWS Global Views</li>
+<li>Creating a VPC with <strong>one</strong> subnet in <code>eu-central-1-ist-1a</code></li>
+<li>Launching a <strong>Debian</strong> EC2 virtual machine (<code>c7i.large</code>) in that Local Zone subnet</li>
+</ol>
+<h2 id="1-opt-in-to-the-istanbul-local-zone">1. Opt in to the Istanbul Local Zone</h2>
+<p>Before you can create subnets or launch instances in a Local Zone, your AWS account must opt in to the zone.</p>
+<ol>
+<li>Switch your AWS Console region to <strong>Europe (Frankfurt)</strong> (<code>eu-central-1</code>).</li>
+<li>Open the <strong>EC2 Console</strong> and navigate to <strong>Settings</strong> → <strong>Zones</strong>. AWS now manages Local Zone opt-ins in <strong>AWS Global Views</strong>—click <strong>Open Global Views</strong>.</li>
+</ol>
+<p><img src="/media/aws-local-zone-istanbul/01-ec2-settings-zones.png" alt="EC2 Settings Zones tab showing the Open Global Views button" /></p>
+<ol start="3">
+<li>In <strong>AWS Global View → Regions and Zones</strong>, switch to the <strong>Local Zones</strong> tab and locate <strong><code>eu-central-1-ist-1a</code></strong> (<code>Turkey (Istanbul)</code>, Parent Region <code>Europe (Frankfurt)</code>, Zone ID <code>euc1-ist1-az1</code>).</li>
+<li>Select the radio button next to <code>eu-central-1-ist-1a</code> and click <strong>Opt-in</strong> (if its status is <code>Not opted in</code>). Once enabled, the status updates to <strong>Opted in</strong>.</li>
+</ol>
+<p><img src="/media/aws-local-zone-istanbul/02-local-zones-istanbul.png" alt="AWS Global View Local Zones tab showing eu-central-1-ist-1a Opted in" /></p>
+<h2 id="2-create-a-vpc-with-one-istanbul-local-zone-subnet">2. Create a VPC with one Istanbul Local Zone subnet</h2>
+<p>Next, create a VPC in <code>eu-central-1</code> with a single public subnet placed in <code>eu-central-1-ist-1a</code>.</p>
+<ol>
+<li>Open the <strong>VPC Console</strong> (<code>eu-central-1</code>) and click <strong>Create VPC</strong>.</li>
+<li>Choose <strong>VPC and more</strong>, set a name prefix (for example <code>istanbul-lz</code>), and keep the IPv4 CIDR block (<code>10.0.0.0/16</code>).</li>
+</ol>
+<p><img src="/media/aws-local-zone-istanbul/03-create-vpc-wizard.png" alt="Create VPC wizard with VPC and more selected" /></p>
+<ol start="3">
+<li>Under <strong>Number of Availability Zones (AZs)</strong>, select <strong>1</strong>. Expand <strong>Customize AZs</strong>, open the <strong>First availability zone</strong> dropdown, and select <strong><code>euc1-ist1-az1 (eu-central-1-ist-1a)</code></strong>. Set <strong>Number of public subnets</strong> to <strong>1</strong>, <strong>Number of private subnets</strong> to <strong>0</strong>, and <strong>NAT gateways</strong> to <strong>None</strong>, then click <strong>Create VPC</strong>.</li>
+</ol>
+<p><img src="/media/aws-local-zone-istanbul/04-create-vpc-az-dropdown.png" alt="Create VPC wizard selecting 1 AZ and choosing eu-central-1-ist-1a from the dropdown" /></p>
+<ol start="4">
+<li>If you are adding a Local Zone subnet to an existing VPC (via <strong>VPC → Subnets → Create subnet</strong>), select your VPC (<code>istanbul-lz-vpc</code>), enter a subnet name (<code>istanbul-lz-subnet-public-ist-1a</code>), open the <strong>Availability Zone</strong> dropdown, and choose <strong><code>Turkey (Istanbul) / euc1-ist1-az1 (eu-central-1-ist-1a)</code></strong> with CIDR <code>10.0.16.0/20</code>.</li>
+</ol>
+<p><img src="/media/aws-local-zone-istanbul/05-create-subnet-az-dropdown.png" alt="Create subnet Availability Zone dropdown showing Turkey (Istanbul) / eu-central-1-ist-1a" /></p>
+<ol start="5">
+<li>Click <strong>Create subnet</strong> and verify the subnet details: <strong>Availability Zone</strong> is <code>euc1-ist1-az1 (eu-central-1-ist-1a)</code>, <strong>Network border group</strong> is <code>eu-central-1-ist-1</code>, and <strong>State</strong> is <strong>Available</strong>.</li>
+</ol>
+<p><img src="/media/aws-local-zone-istanbul/06-subnet-created.png" alt="Subnet details confirming eu-central-1-ist-1a and Available state" /></p>
+<h2 id="3-launch-a-debian-ec2-vm-in-the-istanbul-local-zone">3. Launch a Debian EC2 VM in the Istanbul Local Zone</h2>
+<p>Now launch a Debian EC2 instance inside the Istanbul Local Zone subnet.</p>
+<ol>
+<li>Open <strong>EC2 → Instances → Launch an instance</strong>.</li>
+<li>Enter a name (for example <code>istanbul-lz-vm</code>) and select <strong>Debian</strong> under <strong>Application and OS Images (Quick Start)</strong> (<code>Debian 13 (HVM), SSD Volume Type</code>).</li>
+</ol>
+<p><img src="/media/aws-local-zone-istanbul/07-launch-instance-debian.png" alt="Launch an instance with Debian selected" /></p>
+<ol start="3">
+<li>Under <strong>Instance type</strong>, choose an instance family supported in the Istanbul Local Zone—such as <strong><code>c7i.large</code></strong> (2 vCPU, 4 GiB memory)—and select your <strong>Key pair (login)</strong>.</li>
+</ol>
+<p><img src="/media/aws-local-zone-istanbul/08-launch-instance-type-keypair.png" alt="Instance type c7i.large and key pair selection" /></p>
+<ol start="4">
+<li>Expand <strong>Network settings → Edit</strong> and configure:
+<ul>
+<li><strong>VPC</strong>: <code>istanbul-lz-vpc</code></li>
+<li><strong>Subnet</strong>: <code>istanbul-lz-subnet-public-ist-1a</code> (<code>eu-central-1-ist-1a</code>)</li>
+<li><strong>Auto-assign public IP</strong>: <strong>Enable</strong></li>
+<li><strong>Firewall (security groups)</strong>: Allow SSH (port 22) as needed.</li>
+</ul>
+</li>
+</ol>
+<p><img src="/media/aws-local-zone-istanbul/09-launch-instance-network.png" alt="Network settings configured with istanbul-lz-vpc and Istanbul Local Zone subnet" /></p>
+<ol start="5">
+<li>Click <strong>Launch instance</strong>, then open the instance summary page. Confirm <strong>Instance state</strong> is <strong>Running</strong>, <strong>Instance type</strong> is <strong><code>c7i.large</code></strong>, and <strong>Subnet ID</strong> points to <code>istanbul-lz-subnet-public-ist-1a</code>. When connecting over SSH to a Debian AMI, use the default username <strong><code>admin</code></strong> (<code>ssh admin@&lt;public-ip&gt;</code>).</li>
+</ol>
+<p><img src="/media/aws-local-zone-istanbul/10-instance-running.png" alt="Running EC2 instance summary in Istanbul Local Zone" /></p>
+<h2 id="4-walkthrough-video">4. Walkthrough video</h2>
+<video controls preload="metadata" style="width: 100%; border-radius: 12px;" poster="/media/aws-local-zone-istanbul/10-instance-running.png">
+  <source src="/media/aws-local-zone-istanbul/walkthrough.mp4" type="video/mp4">
+  <track kind="subtitles" srclang="en" label="English" src="/media/aws-local-zone-istanbul/walkthrough.vtt">
+</video>
+
+    </div>
+    
+    <aside class="mt-10 border-t border-line pt-5">
+      <p class="mb-1 text-xs font-bold tracking-[0.06em] text-muted uppercase">More in Technology</p>
+      <ul class="m-0 mt-2 list-none p-0">
+        
+          
+        
+        <li class="my-2"><a class="font-semibold underline-offset-[0.16em]" href="/technology/">All Technology</a></li>
+      </ul>
+    </aside>
+  </div>
+</article>
+
+  </main>
+  <footer class="border-t border-line">
+    <div class="mx-auto grid w-[min(76rem,calc(100%-1.5rem))] grid-cols-1 gap-8 py-8 sm:w-[min(76rem,calc(100%-2.5rem))] sm:grid-cols-[1.4fr_1fr_1fr] sm:py-9">
+      <div>
+        <p class="m-0 font-bold tracking-[-0.03em] text-ink">WHS</p>
+        <p class="m-0 mt-2 text-[0.95rem]"><a class="font-semibold" href="mailto:contact@whs.hk">contact@whs.hk</a></p>
+      </div>
+      <nav class="flex flex-col gap-1.5" aria-label="Sections">
+        <p class="m-0 mb-1 text-xs font-bold tracking-[0.06em] text-muted uppercase">Sections</p>
+        
+        <a class="font-semibold text-ink no-underline hover:underline hover:underline-offset-[0.16em]" href="/">Home</a>
+        
+        <a class="font-semibold text-ink no-underline hover:underline hover:underline-offset-[0.16em]" href="/kpop/">K-pop</a>
+        
+        <a class="font-semibold text-ink no-underline hover:underline hover:underline-offset-[0.16em]" href="/kdrama/">K-drama</a>
+        
+        <a class="font-semibold text-ink no-underline hover:underline hover:underline-offset-[0.16em]" href="/jdrama/">J-drama</a>
+        
+        <a class="font-semibold text-ink no-underline hover:underline hover:underline-offset-[0.16em]" href="/movies/">Movies</a>
+        
+        <a class="font-semibold text-ink no-underline hover:underline hover:underline-offset-[0.16em]" href="/technology/">Technology</a>
+        
+      </nav>
+      <nav class="flex flex-col gap-1.5" aria-label="Site">
+        <p class="m-0 mb-1 text-xs font-bold tracking-[0.06em] text-muted uppercase">Site</p>
+        <a class="font-semibold text-ink no-underline hover:underline hover:underline-offset-[0.16em]" href="/about/" >About Us</a>
+        <a class="font-semibold text-ink no-underline hover:underline hover:underline-offset-[0.16em]" href="/contact/" >Contact Us</a>
+        <a class="font-semibold text-ink no-underline hover:underline hover:underline-offset-[0.16em]" href="https://www.youtube.com/@swimming-bookstore" target="_blank" rel="noopener noreferrer">YouTube</a>
+      </nav>
+    </div>
+  </footer>
+  
+<script>
+  (function () {
+    var links = document.querySelectorAll("nav[aria-label='On this page'] a");
+    if (!links.length) return;
+    var heads = [];
+    links.forEach(function (link) {
+      var id = link.getAttribute("href").slice(1);
+      var el = document.getElementById(id);
+      if (el) heads.push(el);
+    });
+    if (!heads.length || !("IntersectionObserver" in window)) return;
+    var active = null;
+    var obs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        active = entry.target.id;
+        links.forEach(function (link) {
+          link.classList.toggle("is-active", link.getAttribute("href") === "#" + active);
+        });
+      });
+    }, { rootMargin: "-20% 0px -65% 0px", threshold: 0 });
+    heads.forEach(function (el) { obs.observe(el); });
+  })();
+
+  (function () {
+    var imgs = document.querySelectorAll(".prose img");
+    if (!imgs.length) return;
+    var overlay = document.createElement("div");
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-label", "Zoomed image");
+    overlay.style.cssText = "display:none;position:fixed;inset:0;z-index:9999;background:rgba(12,10,18,0.92);align-items:center;justify-content:center;padding:1.5rem;cursor:zoom-out;";
+    var zoomImg = document.createElement("img");
+    zoomImg.style.cssText = "max-width:96vw;max-height:94vh;width:auto;height:auto;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,0.6);object-fit:contain;";
+    var closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.textContent = "×";
+    closeBtn.setAttribute("aria-label", "Close zoomed image");
+    closeBtn.style.cssText = "position:fixed;top:1rem;right:1.25rem;background:rgba(255,255,255,0.14);color:#fff;border:0;border-radius:9999px;width:2.5rem;height:2.5rem;font-size:1.5rem;line-height:1;cursor:pointer;";
+    overlay.appendChild(zoomImg);
+    overlay.appendChild(closeBtn);
+    document.body.appendChild(overlay);
+    function close() {
+      overlay.style.display = "none";
+      zoomImg.removeAttribute("src");
+    }
+    overlay.addEventListener("click", close);
+    closeBtn.addEventListener("click", close);
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && overlay.style.display === "flex") close();
+    });
+    imgs.forEach(function (img) {
+      img.style.cursor = "zoom-in";
+      img.title = "Click to zoom";
+      img.addEventListener("click", function () {
+        zoomImg.src = img.src;
+        zoomImg.alt = img.alt || "";
+        overlay.style.display = "flex";
+      });
+    });
+  })();
+</script>
+
+</body>
+</html>
