@@ -27,7 +27,6 @@
   <header class="pt-8 sm:pt-13">
     <p class="mb-4"><a class="text-xs font-bold tracking-[0.07em] text-accent-dark uppercase no-underline" href="/{{ page.extra.category_slug | default(value='language') }}/">{{ page.extra.category | default(value="Guide") }}</a></p>
     <h1 class="m-0 font-serif text-[clamp(2.2rem,4.6vw,3.15rem)] leading-[1.08] font-[650] tracking-[-0.035em]">{{ page.title }}</h1>
-    <p class="mt-4 text-[1.16rem] leading-snug text-[#3c3848]">{{ page.description }}</p>
     <p class="mt-4 flex flex-wrap gap-x-2 gap-y-1 text-[0.92rem] text-muted">
       {% include "partials/stamp.html" %}
       <span aria-hidden="true">·</span>
