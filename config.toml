@@ -46,3 +46,7 @@ slug = "jdrama"
 [[extra.categories]]
 title = "Movies"
 slug = "movies"
+
+[[extra.categories]]
+title = "Technology"
+slug = "technology"

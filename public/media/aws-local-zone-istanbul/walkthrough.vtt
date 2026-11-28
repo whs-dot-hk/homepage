@@ -1,0 +1,41 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:08.000
+Step 1: Open EC2 Settings -> Zones and click Open Global Views.
+
+2
+00:00:08.000 --> 00:00:16.000
+Step 2: In AWS Global View -> Local Zones, opt in to eu-central-1-ist-1a (Istanbul).
+
+3
+00:00:16.000 --> 00:00:24.000
+Step 3: Open VPC Console -> Create VPC and choose VPC and more.
+
+4
+00:00:24.000 --> 00:00:32.000
+Step 4: Select 1 Availability Zone, 0 private subnets, and pick eu-central-1-ist-1a.
+
+5
+00:00:32.000 --> 00:00:40.000
+Step 5: In Create subnet, choose Turkey (Istanbul) / eu-central-1-ist-1a.
+
+6
+00:00:40.000 --> 00:00:48.000
+Step 6: Verify the subnet is Available in eu-central-1-ist-1a (euc1-ist1-az1).
+
+7
+00:00:48.000 --> 00:00:56.000
+Step 7: Open EC2 -> Launch an instance, name it, and select Debian.
+
+8
+00:00:56.000 --> 00:01:04.000
+Step 8: Choose a Local Zone-supported instance type (c7i.large) and key pair.
+
+9
+00:01:04.000 --> 00:01:12.000
+Step 9: Under Network settings, pick istanbul-lz-vpc, the Istanbul subnet, and Enable public IP.
+
+10
+00:01:12.000 --> 00:01:20.000
+Step 10: Launch and verify Running state; connect via SSH using username admin.
